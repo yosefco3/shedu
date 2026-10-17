@@ -5,3 +5,4 @@ coverage.out
 scripts/test_history.json
 .code-review-graph/
 /guard.conf
+/.state/
