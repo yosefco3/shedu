@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/yosefco12/shedu/internal/checks"
+	"github.com/yosefco12/shedu/internal/config"
 	"github.com/yosefco12/shedu/internal/finding"
 	"github.com/yosefco12/shedu/internal/i18n"
+	"github.com/yosefco12/shedu/internal/notify"
 )
 
 // version is injected at build time: -ldflags "-X main.version=v0.1.0".
@@ -42,14 +44,24 @@ func run(args []string) int {
 		return 0
 	case "check":
 		fs := flag.NewFlagSet("check", flag.ContinueOnError)
-		langFlag := fs.String("lang", "", "message language: he or en (default $SHEDU_LANG or he)")
+		langFlag := fs.String("lang", "", "message language: he or en (default: config, $SHEDU_LANG, he)")
 		asJSON := fs.Bool("json", false, "machine-readable output")
+		cfgPath := fs.String("config", config.DefaultPath, "path to the config file")
+		noTelegram := fs.Bool("no-telegram", false, "print only, do not send to Telegram")
 		if err := fs.Parse(args[1:]); err != nil {
 			return 2
+		}
+		cfg, err := config.Load(*cfgPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "shedu:", err)
+			return 1
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 		report := checks.RunAll(ctx)
+		if cfg.Hostname != "" {
+			report.Host = cfg.Hostname
+		}
 		if *asJSON {
 			b, err := finding.JSON(report)
 			if err != nil {
@@ -59,11 +71,22 @@ func run(args []string) int {
 			fmt.Println(string(b))
 			return 0
 		}
-		lang := *langFlag
-		if lang == "" {
-			lang = os.Getenv("SHEDU_LANG")
+		lang := cfg.Lang
+		if env := os.Getenv("SHEDU_LANG"); env != "" {
+			lang = i18n.Parse(env)
 		}
-		fmt.Print(finding.Text(report, i18n.Parse(lang)))
+		if *langFlag != "" {
+			lang = i18n.Parse(*langFlag)
+		}
+		fmt.Print(finding.Text(report, lang))
+		if cfg.TelegramEnabled() && !*noTelegram {
+			tg := &notify.Telegram{Token: cfg.TelegramToken, ChatID: cfg.TelegramChatID}
+			if err := tg.Send(ctx, finding.Telegram(report, lang, 5)); err != nil {
+				fmt.Fprintln(os.Stderr, "shedu:", err)
+				return 1
+			}
+			fmt.Fprintln(os.Stderr, "sent to Telegram")
+		}
 		return 0
 	case "run":
 		fs := flag.NewFlagSet("run", flag.ContinueOnError)
