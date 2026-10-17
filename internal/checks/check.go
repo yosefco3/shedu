@@ -10,7 +10,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/yosefco12/shedu/internal/finding"
+	"github.com/yosefco3/shedu/internal/finding"
 )
 
 // Check inspects one aspect of the host. Run must never modify the system.

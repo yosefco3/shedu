@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/yosefco12/shedu/internal/finding"
+	"github.com/yosefco3/shedu/internal/finding"
 )
 
 // Firewall answers one question for the owner: is anything filtering inbound

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yosefco12/shedu/internal/i18n"
+	"github.com/yosefco3/shedu/internal/i18n"
 )
 
 func sample() Report {

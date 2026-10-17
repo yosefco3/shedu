@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/yosefco12/shedu/internal/finding"
+	"github.com/yosefco3/shedu/internal/finding"
 )
 
 // Updates reports pending package updates and whether unattended upgrades run.

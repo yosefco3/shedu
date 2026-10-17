@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shedu installer — one command, zero configuration.
-#   curl -fsSL https://raw.githubusercontent.com/yosefco12/shedu/main/packaging/install.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/install.sh | sudo bash
 # Options (all optional):
 #   --token TOKEN      Telegram bot token (else asked)
 #   --chat-id ID       Telegram chat id (else asked / auto-detected)
@@ -10,7 +10,7 @@
 #   --yes              never ask; skip Telegram if not given
 set -euo pipefail
 
-REPO="yosefco12/shedu"
+REPO="yosefco3/shedu"
 BIN=/usr/local/bin/shedu
 CONF_DIR=/etc/shedu
 CONF=$CONF_DIR/guard.conf

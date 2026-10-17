@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yosefco12/shedu/internal/config"
-	"github.com/yosefco12/shedu/internal/finding"
-	"github.com/yosefco12/shedu/internal/i18n"
-	"github.com/yosefco12/shedu/internal/watch"
+	"github.com/yosefco3/shedu/internal/config"
+	"github.com/yosefco3/shedu/internal/finding"
+	"github.com/yosefco3/shedu/internal/i18n"
+	"github.com/yosefco3/shedu/internal/watch"
 )
 
 func TestNextDaily(t *testing.T) {

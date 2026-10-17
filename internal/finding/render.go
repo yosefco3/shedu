@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yosefco12/shedu/internal/i18n"
+	"github.com/yosefco3/shedu/internal/i18n"
 )
 
 // Rendered is a Finding with its texts resolved for one language.

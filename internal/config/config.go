@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yosefco12/shedu/internal/i18n"
+	"github.com/yosefco3/shedu/internal/i18n"
 )
 
 // DefaultPath is where install.sh writes the file.

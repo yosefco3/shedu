@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yosefco12/shedu/internal/finding"
+	"github.com/yosefco3/shedu/internal/finding"
 )
 
 func TestParseShadowEmpty(t *testing.T) {

@@ -1,6 +1,6 @@
 [Unit]
 Description=Shedu — plain-language security watch for this server
-Documentation=https://github.com/yosefco12/shedu
+Documentation=https://github.com/yosefco3/shedu
 After=network-online.target
 Wants=network-online.target
 

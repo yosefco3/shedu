@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yosefco12/shedu/internal/i18n"
+	"github.com/yosefco3/shedu/internal/i18n"
 )
 
 func TestLoadSample(t *testing.T) {

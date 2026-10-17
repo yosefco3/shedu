@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/yosefco12/shedu/internal/finding"
+	"github.com/yosefco3/shedu/internal/finding"
 )
 
 func fw(t *testing.T, nftFile, iptFile string, nftErr, iptErr error, ufw string) *Firewall {

@@ -7,7 +7,7 @@ configuration, and it never blocks anything: it watches your server and tells yo
 Hebrew or English, when something needs your attention.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yosefco12/shedu/main/packaging/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/install.sh | sudo bash
 ```
 
 ## What it does

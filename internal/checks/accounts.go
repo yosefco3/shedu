@@ -14,7 +14,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/yosefco12/shedu/internal/finding"
+	"github.com/yosefco3/shedu/internal/finding"
 )
 
 // Accounts covers the classic signs of a weak or already-compromised host:
