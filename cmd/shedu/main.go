@@ -6,9 +6,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"time"
+
+	"github.com/yosefco12/shedu/internal/checks"
 )
 
 // version is injected at build time: -ldflags "-X main.version=v0.1.0".
@@ -41,8 +45,15 @@ func run(args []string) int {
 		if err := fs.Parse(args[1:]); err != nil {
 			return 2
 		}
-		fmt.Fprintln(os.Stderr, "shedu check: not implemented yet")
-		return 2
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		report := checks.RunAll(ctx)
+		// Temporary raw output; step 06 replaces it with the rendered report.
+		fmt.Printf("score %d/100 (%s)\n", report.Score(), report.Host)
+		for _, f := range report.Sorted() {
+			fmt.Printf("  [%s] %s %v\n", f.Severity, f.ID, f.Args)
+		}
+		return 0
 	case "run":
 		fs := flag.NewFlagSet("run", flag.ContinueOnError)
 		fs.String("config", "/etc/shedu/guard.conf", "path to the config file")

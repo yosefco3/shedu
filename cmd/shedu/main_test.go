@@ -9,8 +9,6 @@ func TestRunExitCodes(t *testing.T) {
 	}{
 		{nil, 2},
 		{[]string{"version"}, 0},
-		{[]string{"check"}, 2},
-		{[]string{"check", "--json"}, 2},
 		{[]string{"run"}, 2},
 		{[]string{"bogus"}, 2},
 		{[]string{"check", "--no-such-flag"}, 2},
