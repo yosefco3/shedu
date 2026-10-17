@@ -24,6 +24,7 @@ func Default() []Check {
 	return []Check{
 		NewUpdates(),
 		NewSSH(),
+		NewPorts(),
 	}
 }
 
