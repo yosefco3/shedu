@@ -33,8 +33,10 @@ sudo ./bin/shedu check --json
 
 - Single static Go binary, standard library only. Read every line.
 - Report-only: the agent never changes the host. It writes only to `/var/lib/shedu`.
-- Nothing leaves the server except the Telegram messages you configured.
+- **What leaves the server:** only the Telegram messages you configured, sent to
+  `api.telegram.org` over TLS. No telemetry, no analytics, no third parties.
 - Runs under systemd with `ProtectSystem=strict`, `NoNewPrivileges` and a 64 MB memory cap.
+- Found a problem? See [SECURITY.md](SECURITY.md).
 
 ## Status
 
