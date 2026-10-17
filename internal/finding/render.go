@@ -20,6 +20,9 @@ type Rendered struct {
 
 var icons = map[Severity]string{Info: "🔵", Low: "🟡", Medium: "🟠", High: "🔴", Critical: "🚨"}
 
+// Icon returns the emoji used for a severity in every channel.
+func Icon(s Severity) string { return icons[s] }
+
 // RenderReport resolves every finding, worst first.
 func RenderReport(r Report, lang i18n.Lang) []Rendered {
 	out := make([]Rendered, 0, len(r.Findings))

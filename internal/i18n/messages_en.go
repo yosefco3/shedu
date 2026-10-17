@@ -32,4 +32,16 @@ var en = map[string]Msg{
 	"perms.shadow_world_readable": {"The password file is readable by everyone", "/etc/shadow holds the password hashes of every user. Any process on the server can copy and crack them."},
 	"perms.sshd_config_writable":  {"The SSH configuration can be modified by a non-root user", "Whoever edits it can open the server to themselves. It must belong to root and be writable by root only."},
 	"perms.world_writable_etc":    {"{{.count}} system config files are writable by everyone", "Any user or hacked process can change them: {{.paths}}."},
+
+	// --- alerts (watch) ---
+	"alert.bruteforce":             {"🚨 Break-in attempt: {{.count}} failed logins from {{.ip}} in the last {{.minutes}} minutes", "Usernames tried: {{.users}}. Nobody got in. If password login is disabled this is just noise; if it is enabled, now is the time to disable it (run: sudo shedu check)."},
+	"alert.login_new_ip":           {"New login: {{.user}} connected from {{.ip}}{{if .private}} (local network){{end}}", "This address has never logged in before (method: {{.method}}). If that was you, ignore this. If not, change passwords and check the SSH keys."},
+	"alert.login_after_bruteforce": {"Someone logged in as {{.user}} from {{.ip}} right after guessing passwords", "{{.ip}} failed many times and then succeeded. Treat this as a break-in: lock the user, kill its sessions and rotate every secret on this server."},
+	"alert.sudo_new_user":          {"{{.user}} used sudo for the first time", "Command: {{.command}}. Sudo makes anyone root. If you do not know this user, this is urgent."},
+	"alert.sudo_fail":              {"{{.user}} tried sudo and failed", "{{.detail}}. Someone in this account is trying to become root."},
+	"alert.user_added":             {"👤 New user created: {{.user}} (uid {{.uid}})", "If you did not create it, this is a backdoor. See when it last logged in, then remove it."},
+	"alert.user_removed":           {"User removed: {{.user}}", "For your records."},
+	"alert.key_added":              {"🔑 New SSH key for {{.user}}: {{.fp}} {{.comment}}", "A key is a permanent entrance without a password. If you did not add it, delete that line now."},
+	"alert.key_removed":            {"SSH key removed for {{.user}}: {{.fp}}", "For your records."},
+	"alert.sudoers_changed":        {"⚙️ sudo rights changed", "{{.diff}}"},
 }
