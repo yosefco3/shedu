@@ -1,0 +1,6 @@
+{"__REALTIME_TIMESTAMP":"1760678042123456","SYSLOG_IDENTIFIER":"sshd","_COMM":"sshd-session","MESSAGE":"Failed password for root from 185.220.101.7 port 43992 ssh2"}
+{"__REALTIME_TIMESTAMP":"1760678043000000","SYSLOG_IDENTIFIER":"sshd-session","MESSAGE":"Accepted publickey for yosef from 10.0.0.5 port 50000 ssh2: ED25519 SHA256:abc"}
+{"__REALTIME_TIMESTAMP":"1760678044000000","SYSLOG_IDENTIFIER":"sudo","MESSAGE":"    yosef : TTY=pts/0 ; PWD=/home/yosef ; USER=root ; COMMAND=/usr/bin/systemctl restart nginx"}
+{"__REALTIME_TIMESTAMP":"1760678045000000","SYSLOG_IDENTIFIER":"cron","MESSAGE":"Failed password for root from 1.2.3.4 port 1 ssh2"}
+{"__REALTIME_TIMESTAMP":"1760678046000000","SYSLOG_IDENTIFIER":"sshd","MESSAGE":[70,97,105,108,101,100]}
+{"__REALTIME_TIMESTAMP":"1760678047000000","SYSLOG_IDENTIFIER":"sshd","MESSAGE":"Connection closed by 1.2.3.4 port 5 [preauth]"}

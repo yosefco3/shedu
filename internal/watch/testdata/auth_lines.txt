@@ -1,0 +1,16 @@
+Mar 13 03:14:02 srv sshd[1234]: Failed password for root from 185.220.101.7 port 43992 ssh2
+Mar 13 03:14:05 srv sshd[1235]: Failed password for invalid user admin from 45.83.64.11 port 51000 ssh2
+Mar 13 03:14:06 srv sshd[1236]: Invalid user oracle from 103.145.13.90 port 5555
+Mar 13 03:14:08 srv sshd[1237]: Accepted publickey for yosef from 10.0.0.5 port 50000 ssh2: ED25519 SHA256:abcdef
+Mar 13 03:14:09 srv sshd[1238]: Accepted password for deploy from 91.108.4.30 port 2222 ssh2
+Mar 13 03:14:10 srv sshd[1239]: Connection closed by authenticating user root 185.220.101.7 port 43992 [preauth]
+Mar 13 03:14:11 srv sshd[1240]: pam_unix(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=185.220.101.7  user=root
+Mar 13 03:14:12 srv sshd[1241]: pam_unix(sshd:session): session opened for user yosef(uid=1000) by (uid=0)
+Mar 13 03:14:13 srv sshd[1242]: Disconnected from invalid user admin 45.83.64.11 port 51000 [preauth]
+Mar 13 03:15:00 srv sudo:    yosef : TTY=pts/0 ; PWD=/home/yosef ; USER=root ; COMMAND=/usr/bin/apt update
+Mar 13 03:15:05 srv sudo:    yosef : 3 incorrect password attempts ; TTY=pts/0 ; PWD=/home/yosef ; USER=root ; COMMAND=/bin/ls
+Mar 13 03:15:06 srv sudo:      bob : user NOT in sudoers ; TTY=pts/1 ; PWD=/home/bob ; USER=root ; COMMAND=/bin/cat /etc/shadow
+Mar 13 03:15:07 srv sudo: pam_unix(sudo:session): session opened for user root(uid=0) by yosef(uid=1000)
+2026-10-17T03:16:00.123456+00:00 deb12 sshd-session[777]: Accepted keyboard-interactive/pam for alice from 2001:db8::7 port 40000 ssh2
+2026-10-17T03:16:01.000000+00:00 deb12 sshd-session[778]: Failed publickey for root from 203.0.113.9 port 1 ssh2: RSA SHA256:zzz
+Mar 13 03:17:00 srv CRON[999]: pam_unix(cron:session): session opened for user root

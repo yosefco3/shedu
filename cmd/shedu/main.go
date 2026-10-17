@@ -17,6 +17,7 @@ import (
 	"github.com/yosefco12/shedu/internal/finding"
 	"github.com/yosefco12/shedu/internal/i18n"
 	"github.com/yosefco12/shedu/internal/notify"
+	"github.com/yosefco12/shedu/internal/watch"
 )
 
 // version is injected at build time: -ldflags "-X main.version=v0.1.0".
@@ -96,6 +97,18 @@ func run(args []string) int {
 		}
 		fmt.Fprintln(os.Stderr, "shedu run: not implemented yet")
 		return 2
+	case "events": // temporary debug command; removed in step 11
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		ch, err := watch.NewSource().Events(ctx)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "shedu:", err)
+			return 1
+		}
+		for ev := range ch {
+			fmt.Printf("%s %-12s user=%s ip=%s %s %s\n", ev.Time.Format(time.TimeOnly), ev.Kind, ev.User, ev.IP, ev.Method, ev.Detail)
+		}
+		return 0
 	default:
 		fmt.Fprintf(os.Stderr, "shedu: unknown command %q\n", args[0])
 		usage()
