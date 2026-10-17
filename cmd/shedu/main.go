@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/yosefco12/shedu/internal/checks"
+	"github.com/yosefco12/shedu/internal/finding"
+	"github.com/yosefco12/shedu/internal/i18n"
 )
 
 // version is injected at build time: -ldflags "-X main.version=v0.1.0".
@@ -40,19 +42,28 @@ func run(args []string) int {
 		return 0
 	case "check":
 		fs := flag.NewFlagSet("check", flag.ContinueOnError)
-		fs.String("lang", "", "message language: he or en (default $SHEDU_LANG or he)")
-		fs.Bool("json", false, "machine-readable output")
+		langFlag := fs.String("lang", "", "message language: he or en (default $SHEDU_LANG or he)")
+		asJSON := fs.Bool("json", false, "machine-readable output")
 		if err := fs.Parse(args[1:]); err != nil {
 			return 2
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 		report := checks.RunAll(ctx)
-		// Temporary raw output; step 06 replaces it with the rendered report.
-		fmt.Printf("score %d/100 (%s)\n", report.Score(), report.Host)
-		for _, f := range report.Sorted() {
-			fmt.Printf("  [%s] %s %v\n", f.Severity, f.ID, f.Args)
+		if *asJSON {
+			b, err := finding.JSON(report)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "shedu:", err)
+				return 1
+			}
+			fmt.Println(string(b))
+			return 0
 		}
+		lang := *langFlag
+		if lang == "" {
+			lang = os.Getenv("SHEDU_LANG")
+		}
+		fmt.Print(finding.Text(report, i18n.Parse(lang)))
 		return 0
 	case "run":
 		fs := flag.NewFlagSet("run", flag.ContinueOnError)
