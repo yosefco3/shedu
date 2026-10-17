@@ -1,0 +1,6 @@
+Port 22
+MaxAuthTries 10
+PermitRootLogin yes
+PasswordAuthentication yes
+PermitEmptyPasswords yes
+X11Forwarding no

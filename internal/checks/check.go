@@ -23,6 +23,7 @@ type Check interface {
 func Default() []Check {
 	return []Check{
 		NewUpdates(),
+		NewSSH(),
 	}
 }
 
