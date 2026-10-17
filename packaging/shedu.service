@@ -1,0 +1,21 @@
+[Unit]
+Description=Shedu — plain-language security watch for this server
+Documentation=https://github.com/yosefco12/shedu
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/shedu run
+Restart=always
+RestartSec=5
+# Report-only agent: it may write only its own state directory.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/shedu
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+MemoryMax=64M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

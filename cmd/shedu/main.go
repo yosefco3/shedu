@@ -14,10 +14,14 @@ import (
 
 	"github.com/yosefco12/shedu/internal/checks"
 	"github.com/yosefco12/shedu/internal/config"
+	"github.com/yosefco12/shedu/internal/daemon"
 	"github.com/yosefco12/shedu/internal/finding"
 	"github.com/yosefco12/shedu/internal/i18n"
 	"github.com/yosefco12/shedu/internal/notify"
 	"github.com/yosefco12/shedu/internal/watch"
+	"log"
+	"os/signal"
+	"syscall"
 )
 
 // version is injected at build time: -ldflags "-X main.version=v0.1.0".
@@ -91,27 +95,52 @@ func run(args []string) int {
 		return 0
 	case "run":
 		fs := flag.NewFlagSet("run", flag.ContinueOnError)
-		fs.String("config", "/etc/shedu/guard.conf", "path to the config file")
+		cfgPath := fs.String("config", config.DefaultPath, "path to the config file")
 		if err := fs.Parse(args[1:]); err != nil {
 			return 2
 		}
-		fmt.Fprintln(os.Stderr, "shedu run: not implemented yet")
-		return 2
-	case "events": // temporary debug command; removed in step 11
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		ch, err := watch.NewSource().Events(ctx)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "shedu:", err)
-			return 1
-		}
-		for ev := range ch {
-			fmt.Printf("%s %-12s user=%s ip=%s %s %s\n", ev.Time.Format(time.TimeOnly), ev.Kind, ev.User, ev.IP, ev.Method, ev.Detail)
-		}
-		return 0
+		return runDaemon(*cfgPath)
 	default:
 		fmt.Fprintf(os.Stderr, "shedu: unknown command %q\n", args[0])
 		usage()
 		return 2
 	}
+}
+
+func runDaemon(cfgPath string) int {
+	logger := log.New(os.Stderr, "", 0) // journald adds timestamps
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		logger.Println("shedu:", err)
+		return 1
+	}
+	st, err := watch.LoadState(cfg.StateDir)
+	if err != nil {
+		logger.Println("shedu:", err)
+	}
+	var notifier notify.Notifier = notify.Stdout{W: os.Stdout}
+	if cfg.TelegramEnabled() {
+		notifier = &notify.Telegram{Token: cfg.TelegramToken, ChatID: cfg.TelegramChatID}
+	} else {
+		logger.Println("shedu: Telegram not configured, alerts go to stdout (see /etc/shedu/guard.conf)")
+	}
+	acc := watch.NewAccountsWatcher(cfg.StateDir)
+	d := &daemon.Daemon{
+		Cfg:      cfg,
+		Notifier: notifier,
+		Auth:     watch.NewSource(),
+		Accounts: acc,
+		Rules:    watch.NewRules(cfg.BruteForceN),
+		State:    st,
+		RunCheck: checks.RunAll,
+		Log:      logger,
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	logger.Printf("shedu %s watching %s", version, cfg.Hostname)
+	if err := d.Run(ctx); err != nil {
+		logger.Println("shedu:", err)
+		return 1
+	}
+	return 0
 }

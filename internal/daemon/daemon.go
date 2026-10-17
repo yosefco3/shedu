@@ -1,0 +1,222 @@
+// Package daemon is the `shedu run` loop: watchers → rules → notifier, plus a
+// daily report. It is deliberately boring: one goroutine per source, one
+// sender, state saved after every change.
+package daemon
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/yosefco12/shedu/internal/config"
+	"github.com/yosefco12/shedu/internal/finding"
+	"github.com/yosefco12/shedu/internal/i18n"
+	"github.com/yosefco12/shedu/internal/notify"
+	"github.com/yosefco12/shedu/internal/watch"
+)
+
+// Daemon wires the pieces together. Every field is replaceable for tests.
+type Daemon struct {
+	Cfg      config.Config
+	Notifier notify.Notifier
+	Auth     watch.Source           // login/sudo events
+	Accounts *watch.AccountsWatcher // user/key/sudoers events
+	Rules    *watch.Rules
+	State    *watch.State
+	Clock    func() time.Time
+	RunCheck func(ctx context.Context) finding.Report
+	Log      *log.Logger
+
+	// Backoff bounds for restarting a source that ended (journalctl died, file vanished).
+	MinBackoff, MaxBackoff time.Duration
+}
+
+// Run blocks until ctx is done. It returns after the state has been saved.
+func (d *Daemon) Run(ctx context.Context) error {
+	if d.Clock == nil {
+		d.Clock = time.Now
+	}
+	if d.Log == nil {
+		d.Log = log.Default()
+	}
+	if d.MinBackoff <= 0 {
+		d.MinBackoff = time.Second
+	}
+	if d.MaxBackoff <= 0 {
+		d.MaxBackoff = 30 * time.Second
+	}
+	if d.State == nil {
+		d.State = &watch.State{}
+	}
+
+	saver := newSaver(d.State, d.Cfg.StateDir, d.Log)
+	defer saver.flush()
+
+	events := make(chan watch.Event, 256)
+	var wg sync.WaitGroup
+
+	if d.Auth != nil {
+		wg.Add(1)
+		go func() { defer wg.Done(); d.pump(ctx, events) }()
+	}
+	if d.Accounts != nil {
+		wg.Add(1)
+		go func() { defer wg.Done(); d.Accounts.Run(ctx, d.State, events, saver.request) }()
+	}
+
+	if d.State.Fresh() {
+		d.send(ctx, i18n.T(d.Cfg.Lang, "connected", map[string]string{"host": d.Cfg.Hostname}))
+	}
+
+	var daily <-chan time.Time
+	var dailyTimer *time.Timer
+	if d.Cfg.DailyReportAt != "" && d.RunCheck != nil {
+		if next, err := NextDaily(d.Clock(), d.Cfg.DailyReportAt); err == nil {
+			dailyTimer = time.NewTimer(next.Sub(d.Clock()))
+			daily = dailyTimer.C
+		} else {
+			d.Log.Printf("daily report disabled: %v", err)
+		}
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			wg.Wait()
+			return nil
+		case ev := <-events:
+			if alert, ok := d.Rules.Feed(ev, d.State); ok {
+				d.send(ctx, alert.Telegram(d.Cfg.Lang))
+			}
+			saver.request()
+		case <-daily:
+			d.sendDaily(ctx)
+			next, _ := NextDaily(d.Clock(), d.Cfg.DailyReportAt)
+			dailyTimer.Reset(next.Sub(d.Clock()))
+		}
+	}
+}
+
+// pump forwards events from the auth source, restarting it with backoff when it ends.
+func (d *Daemon) pump(ctx context.Context, out chan<- watch.Event) {
+	backoff := d.MinBackoff
+	for ctx.Err() == nil {
+		ch, err := d.Auth.Events(ctx)
+		if err != nil {
+			d.Log.Printf("auth source: %v (retry in %s)", err, backoff)
+		} else {
+			started := d.Clock()
+		drain:
+			for {
+				select {
+				case ev, ok := <-ch:
+					if !ok {
+						break drain
+					}
+					select {
+					case out <- ev:
+					case <-ctx.Done():
+						return
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+			if d.Clock().Sub(started) > time.Minute {
+				backoff = d.MinBackoff // it ran fine for a while: reset
+			}
+			d.Log.Printf("auth source ended (restart in %s)", backoff)
+		}
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return
+		}
+		if backoff *= 2; backoff > d.MaxBackoff {
+			backoff = d.MaxBackoff
+		}
+	}
+}
+
+func (d *Daemon) send(ctx context.Context, text string) {
+	if d.Notifier == nil {
+		return
+	}
+	sctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	if err := d.Notifier.Send(sctx, text); err != nil {
+		d.Log.Printf("notify: %v", err)
+	}
+}
+
+func (d *Daemon) sendDaily(ctx context.Context) {
+	cctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	report := d.RunCheck(cctx)
+	if d.Cfg.Hostname != "" {
+		report.Host = d.Cfg.Hostname
+	}
+	d.send(ctx, i18n.T(d.Cfg.Lang, "daily", map[string]string{"host": report.Host})+"\n"+finding.Telegram(report, d.Cfg.Lang, 5))
+}
+
+// NextDaily returns the next occurrence of "HH:MM" strictly after now, in now's location.
+func NextDaily(now time.Time, hhmm string) (time.Time, error) {
+	parts := strings.Split(hhmm, ":")
+	if len(parts) != 2 {
+		return time.Time{}, fmt.Errorf("DAILY_REPORT_AT %q: want HH:MM", hhmm)
+	}
+	h, err1 := strconv.Atoi(parts[0])
+	m, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil || h < 0 || h > 23 || m < 0 || m > 59 {
+		return time.Time{}, fmt.Errorf("DAILY_REPORT_AT %q: want HH:MM", hhmm)
+	}
+	next := time.Date(now.Year(), now.Month(), now.Day(), h, m, 0, 0, now.Location())
+	if !next.After(now) {
+		next = next.AddDate(0, 0, 1)
+	}
+	return next, nil
+}
+
+// saver debounces state writes: many events in a burst → one write.
+type saver struct {
+	mu      sync.Mutex
+	st      *watch.State
+	dir     string
+	log     *log.Logger
+	pending bool
+	timer   *time.Timer
+}
+
+func newSaver(st *watch.State, dir string, l *log.Logger) *saver {
+	return &saver{st: st, dir: dir, log: l}
+}
+
+func (s *saver) request() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.dir == "" {
+		return nil
+	}
+	s.pending = true
+	if s.timer == nil {
+		s.timer = time.AfterFunc(2*time.Second, s.flush)
+	}
+	return nil
+}
+
+func (s *saver) flush() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.timer = nil
+	if !s.pending || s.dir == "" {
+		return
+	}
+	s.pending = false
+	if err := s.st.Save(s.dir); err != nil {
+		s.log.Printf("save state: %v", err)
+	}
+}
