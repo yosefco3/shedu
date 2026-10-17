@@ -4,8 +4,15 @@
 # ./guard.conf (0600, git-ignored) and sends a first real report.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-read -r -s -p "Telegram bot token (hidden): " TOKEN; echo
-[ -n "$TOKEN" ] || { echo "no token given"; exit 1; }
+echo "Paste ONLY the bot token from BotFather (it looks like 123456789:AAH...)."
+echo "Nothing will appear on screen while you paste. Then press Enter."
+read -r -s -p "token: " TOKEN; echo
+TOKEN=$(printf '%s' "$TOKEN" | tr -d '[:space:]')
+[ -n "$TOKEN" ] || { echo "✖ nothing was entered"; exit 1; }
+if ! printf '%s' "$TOKEN" | grep -Eq '^[0-9]{6,}:[A-Za-z0-9_-]{30,}$'; then
+  echo "✖ That does not look like a bot token (expected digits, a colon, then ~35 letters). Try again."
+  exit 1
+fi
 # first: is the token valid at all?
 ME=$(curl -sS "https://api.telegram.org/bot$TOKEN/getMe" || true)
 case "$ME" in
@@ -21,6 +28,10 @@ CHAT_ID=$(echo "$UPDATES" | grep -o '"chat":{"id":-\?[0-9]*' | head -1 | grep -o
 if [ -z "$CHAT_ID" ]; then
   echo "✖ The bot @$BOT has not received any message yet."
   echo "  Open https://t.me/$BOT in Telegram, press Start (or send 'hi'), then run this again."
+  echo "  Raw reply from Telegram (safe to share, contains no token):"
+  echo "  ${UPDATES:0:400}"
+  WH=$(curl -sS "https://api.telegram.org/bot$TOKEN/getWebhookInfo" || true)
+  echo "  Webhook info: ${WH:0:200}"
   exit 1
 fi
 umask 077
