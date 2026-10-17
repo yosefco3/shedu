@@ -2,15 +2,47 @@
 
 **Shedu** (Akkadian *šēdu*): the winged guardian spirit that stood in pairs at the gates of Assyrian palaces.
 
-A tiny, open-source security guard for small Linux servers.
+A tiny, open-source security guard for small Linux servers. One command to install, zero
+configuration, and it never blocks anything: it watches your server and tells you, in plain
+Hebrew or English, on Telegram, when something needs your attention.
 
-One command to install. Zero configuration. It never blocks anything — it watches your
-server and tells you, in plain language, when something needs your attention:
+```bash
+curl -fsSL https://raw.githubusercontent.com/yosefco12/shedu/main/packaging/install.sh | sudo bash
+```
 
-- a health score with missing updates, weak SSH settings, exposed ports, no firewall
-- brute-force login attempts, logins from new addresses
-- new users, new SSH keys, new sudo rights
+## What it does
 
-Status: **specification phase** — see `ROADMAP.md` and `features-prompts/01-agent-mvp/`.
+- **Health score (0–100)** — pending security updates, password logins over SSH, databases
+  open to the internet, missing firewall, password-less accounts, bad file permissions.
+  Every finding comes with a one-line explanation and a copy-pasteable fix.
+- **Login watch** — brute-force attempts, a successful login from an address never seen
+  before, a login right after a burst of failures.
+- **Account watch** — new users, new SSH keys in any `authorized_keys`, changed sudo rights.
+- **Daily report** to Telegram at 08:00, alerts within a minute.
+
+## Try it without installing
+
+```bash
+make build
+sudo ./bin/shedu check            # Hebrew by default
+sudo ./bin/shedu check --lang en
+sudo ./bin/shedu check --json
+```
+
+## Trust
+
+- Single static Go binary, standard library only. Read every line.
+- Report-only: the agent never changes the host. It writes only to `/var/lib/shedu`.
+- Nothing leaves the server except the Telegram messages you configured.
+- Runs under systemd with `ProtectSystem=strict`, `NoNewPrivileges` and a 64 MB memory cap.
+
+## Status
+
+Phase 1 (agent) is implemented; see `ROADMAP.md` for what comes next and
+`features-prompts/01-agent-mvp/_PROGRESS.md` for the acceptance test.
 
 Project folder is still named `server-guard`; the product, binary and paths are `shedu`.
+
+## License
+
+Apache-2.0.
