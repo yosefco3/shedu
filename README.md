@@ -38,10 +38,8 @@ sudo ./bin/shedu check --json
 
 ## Status
 
-Phase 1 (agent) is implemented; see `ROADMAP.md` for what comes next and
-`features-prompts/01-agent-mvp/_PROGRESS.md` for the acceptance test.
-
-Project folder is still named `server-guard`; the product, binary and paths are `shedu`.
+Phase 1 (the agent) is implemented and released. A central dashboard, behaviour detection
+and more are planned.
 
 ## License
 

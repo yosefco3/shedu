@@ -17,7 +17,7 @@ jobs:
       - run: go test -race -timeout 120s ./...
       - run: make build
       - name: shell syntax
-        run: bash -n packaging/install.sh && bash -n packaging/uninstall.sh && bash -n scripts/step_done.sh
+        run: bash -n packaging/install.sh && bash -n packaging/uninstall.sh && bash -n scripts/dev_telegram.sh
       - name: shellcheck
         uses: ludeeus/action-shellcheck@2.0.0
         with:
