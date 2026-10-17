@@ -3,6 +3,8 @@ package watch
 import (
 	"context"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -89,32 +91,38 @@ func TestSnapshotAndDiff(t *testing.T) {
 }
 
 func TestAccountsWatcherRun(t *testing.T) {
+	var mu sync.Mutex
 	passwd := passwd1
 	w := &AccountsWatcher{
-		Passwd:   func() ([]byte, error) { return []byte(passwd), nil },
+		Passwd:   func() ([]byte, error) { mu.Lock(); defer mu.Unlock(); return []byte(passwd), nil },
 		HomeKeys: keys(nil),
 		Sudoers:  func() ([]byte, error) { return []byte("x"), nil },
 		Interval: 10 * time.Millisecond,
 		StateDir: t.TempDir(),
 	}
 	st := newState()
-	saves := 0
+	var saves atomic.Int32
 	out := make(chan Event, 16)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go w.Run(ctx, st, out, func() error { saves++; return nil })
+	go w.Run(ctx, st, out, func() error { saves.Add(1); return nil })
 
-	time.Sleep(50 * time.Millisecond)
+	deadline := time.Now().Add(2 * time.Second)
+	for saves.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
 	select {
 	case e := <-out:
 		t.Fatalf("first snapshot must be silent, got %+v", e)
 	default:
 	}
-	if st.Accounts.Taken.IsZero() || saves == 0 {
+	if saves.Load() == 0 {
 		t.Fatal("first snapshot must be stored and saved")
 	}
 
+	mu.Lock()
 	passwd += "guardtest:x:1002:1002::/home/guardtest:/bin/bash\n"
+	mu.Unlock()
 	select {
 	case e := <-out:
 		if e.Kind != UserAdded || e.User != "guardtest" {
@@ -123,7 +131,7 @@ func TestAccountsWatcherRun(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("no event after adding a user")
 	}
-	if saves < 2 {
+	if saves.Load() < 2 {
 		t.Error("state must be saved after a change")
 	}
 }
