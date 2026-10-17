@@ -1,0 +1,9 @@
+# /etc/sudoers
+Defaults	env_reset
+root	ALL=(ALL:ALL) ALL
+%admin ALL=(ALL) ALL
+%sudo	ALL=(ALL:ALL) ALL
+deploy ALL=(ALL) NOPASSWD: ALL
+backup ALL=(root) NOPASSWD: /usr/bin/rsync, /usr/bin/systemctl restart nginx
+# ops ALL=(ALL) NOPASSWD: ALL
+@includedir /etc/sudoers.d
