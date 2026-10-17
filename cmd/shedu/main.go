@@ -49,7 +49,7 @@ func run(args []string) int {
 		return 0
 	case "check":
 		fs := flag.NewFlagSet("check", flag.ContinueOnError)
-		langFlag := fs.String("lang", "", "message language: he or en (default: config, $SHEDU_LANG, he)")
+		langFlag := fs.String("lang", "", "terminal language: en (default) or he; Telegram uses LANG from the config")
 		asJSON := fs.Bool("json", false, "machine-readable output")
 		cfgPath := fs.String("config", config.DefaultPath, "path to the config file")
 		noTelegram := fs.Bool("no-telegram", false, "print only, do not send to Telegram")
@@ -76,17 +76,20 @@ func run(args []string) int {
 			fmt.Println(string(b))
 			return 0
 		}
-		lang := cfg.Lang
-		if env := os.Getenv("SHEDU_LANG"); env != "" {
-			lang = i18n.Parse(env)
-		}
+		// Terminal output is English unless --lang says otherwise: terminals
+		// render Hebrew right-to-left badly. Telegram gets the configured language.
+		termLang := i18n.En
 		if *langFlag != "" {
-			lang = i18n.Parse(*langFlag)
+			termLang = i18n.Parse(*langFlag)
 		}
-		fmt.Print(finding.Text(report, lang))
+		msgLang := cfg.Lang
+		if env := os.Getenv("SHEDU_LANG"); env != "" {
+			msgLang = i18n.Parse(env)
+		}
+		fmt.Print(finding.Text(report, termLang))
 		if cfg.TelegramEnabled() && !*noTelegram {
 			tg := &notify.Telegram{Token: cfg.TelegramToken, ChatID: cfg.TelegramChatID}
-			if err := tg.Send(ctx, finding.Telegram(report, lang, 5)); err != nil {
+			if err := tg.Send(ctx, finding.Telegram(report, msgLang, 5)); err != nil {
 				fmt.Fprintln(os.Stderr, "shedu:", err)
 				return 1
 			}
@@ -123,6 +126,7 @@ func runDaemon(cfgPath string) int {
 		notifier = &notify.Telegram{Token: cfg.TelegramToken, ChatID: cfg.TelegramChatID}
 	} else {
 		logger.Println("shedu: Telegram not configured, alerts go to stdout (see /etc/shedu/guard.conf)")
+		cfg.Lang = i18n.En // terminals render Hebrew badly
 	}
 	acc := watch.NewAccountsWatcher(cfg.StateDir)
 	d := &daemon.Daemon{

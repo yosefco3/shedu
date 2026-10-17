@@ -16,7 +16,7 @@ fi
 # first: is the token valid at all?
 ME=$(curl -sS "https://api.telegram.org/bot$TOKEN/getMe" || true)
 case "$ME" in
-  *'"ok":true'*) BOT=$(echo "$ME" | grep -o '"username":"[^"]*' | cut -d'"' -f4); echo "✔ token ok, bot: @$BOT";;
+  *'"ok":true'*) BOT=$(echo "$ME" | grep -o '"username":"[^"]*' | cut -d'"' -f4); NAME=$(echo "$ME" | grep -o '"first_name":"[^"]*' | cut -d'"' -f4); echo "✔ token ok, bot: @$BOT (display name: $NAME)";;
   *401*|*Unauthorized*) echo "✖ Telegram says the token is wrong (Unauthorized). Copy it again from @BotFather — it looks like 123456789:AAH...". ; exit 1;;
   *) echo "✖ could not reach api.telegram.org: ${ME:-no response}"; exit 1;;
 esac

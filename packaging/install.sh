@@ -4,7 +4,7 @@
 # Options (all optional):
 #   --token TOKEN      Telegram bot token (else asked)
 #   --chat-id ID       Telegram chat id (else asked / auto-detected)
-#   --lang he|en       message language (default he)
+#   --lang he|en       language of the Telegram messages (default he); terminal output is always English
 #   --binary PATH      install this binary instead of downloading a release (dev)
 #   --upgrade          replace the binary and restart, keep config
 #   --yes              never ask; skip Telegram if not given
@@ -30,7 +30,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-say() { if [ "$LANG_OPT" = "he" ]; then echo "$1"; else echo "$2"; fi; }
+# Terminal output is always English (terminals render Hebrew badly);
+# $LANG_OPT only selects the language of the Telegram messages.
+say() { echo "$2"; }
 die() { echo "✖ $*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "$(say 'יש להריץ עם sudo' 'please run with sudo')"
@@ -87,7 +89,7 @@ if [ ! -f "$CONF" ]; then
     say "  2. העתק את ה-token שהוא נותן (נראה כמו 123456:ABC-DEF...)." "  2. Copy the token it gives you (looks like 123456:ABC-DEF...)."
     say "  3. שלח הודעה כלשהי לבוט החדש שלך, כדי שהוא יכיר אותך." "  3. Send any message to your new bot so it knows who you are."
     say "" ""
-    read -r -p "$(say 'הדבק את ה-token (או Enter כדי לדלג): ' 'Paste the token (or Enter to skip): ')" TOKEN </dev/tty || TOKEN=""
+    read -r -p "Paste the token (or Enter to skip): " TOKEN </dev/tty || TOKEN=""
   fi
   if [ -n "$TOKEN" ] && [ -z "$CHAT_ID" ]; then
     # auto-detect the chat id from the message the user just sent
@@ -152,7 +154,7 @@ fi
 
 # --- first report ---------------------------------------------------------
 echo
-"$BIN" check --config "$CONF" --no-telegram || true
+"$BIN" check --config "$CONF" || true
 echo
 say "✔ Shedu הותקן. דוח יומי בשעה 08:00. בכל רגע: sudo shedu check" \
     "✔ Shedu installed. Daily report at 08:00. Any time: sudo shedu check"

@@ -3,8 +3,8 @@
 **Shedu** (Akkadian *šēdu*): the winged guardian spirit that stood in pairs at the gates of Assyrian palaces.
 
 A tiny, open-source security guard for small Linux servers. One command to install, zero
-configuration, and it never blocks anything: it watches your server and tells you, in plain
-Hebrew or English, on Telegram, when something needs your attention.
+configuration, and it never blocks anything: it watches your server and tells you, on Telegram in plain
+Hebrew or English, when something needs your attention.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/yosefco12/shedu/main/packaging/install.sh | sudo bash
@@ -24,8 +24,8 @@ curl -fsSL https://raw.githubusercontent.com/yosefco12/shedu/main/packaging/inst
 
 ```bash
 make build
-sudo ./bin/shedu check            # Hebrew by default
-sudo ./bin/shedu check --lang en
+sudo ./bin/shedu check            # terminal output is English
+sudo ./bin/shedu check --lang he  # Hebrew (fine in a terminal that renders RTL)
 sudo ./bin/shedu check --json
 ```
 
