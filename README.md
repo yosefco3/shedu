@@ -1,4 +1,6 @@
-# server-guard
+# Shedu
+
+**Shedu** (Akkadian *šēdu*): the winged guardian spirit that stood in pairs at the gates of Assyrian palaces.
 
 A tiny, open-source security guard for small Linux servers.
 
@@ -11,4 +13,4 @@ server and tells you, in plain language, when something needs your attention:
 
 Status: **specification phase** — see `ROADMAP.md` and `features-prompts/01-agent-mvp/`.
 
-Working name. Final product name TBD.
+Project folder is still named `server-guard`; the product, binary and paths are `shedu`.
