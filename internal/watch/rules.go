@@ -110,6 +110,12 @@ func (r *Rules) Feed(ev Event, st *State) (Alert, bool) {
 	case OutboundNew:
 		return r.emit(st, now, Alert{ID: "alert.outbound_new", Severity: finding.Low, Key: "out:" + ev.Args["comm"] + ":" + ev.Args["ip"],
 			Args: ev.Args, Fix: "sudo ss -tnp dst " + ev.Args["ip"]})
+	case PersistenceNew:
+		sev := finding.Medium
+		if ev.Args["user_level"] != "" {
+			sev = finding.High // packages never write here
+		}
+		return r.direct(now, Alert{ID: "alert.persistence_new", Severity: sev, Args: ev.Args, Fix: ev.Args["fix"]})
 	case OutboundBeacon:
 		return r.emit(st, now, Alert{ID: "alert.outbound_beacon", Severity: finding.Medium, Key: "beacon:" + ev.Args["comm"] + ":" + ev.Args["ip"],
 			Args: ev.Args, Fix: "sudo ss -tnp dst " + ev.Args["ip"]})
