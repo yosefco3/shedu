@@ -85,3 +85,38 @@ func (s *State) Save(dir string) error {
 	}
 	return os.Rename(tmp, filepath.Join(dir, stateFile))
 }
+
+// loadSide reads a watcher's private JSON file dir/name into v. Missing or
+// corrupt files leave v untouched: a watcher then simply starts from scratch.
+func loadSide(dir, name string, v any) {
+	if dir == "" {
+		return
+	}
+	b, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		return
+	}
+	if json.Unmarshal(b, v) != nil {
+		_ = os.Rename(filepath.Join(dir, name), filepath.Join(dir, name+".bad"))
+	}
+}
+
+// saveSide writes v to dir/name atomically with mode 0600. Each watcher owns
+// its file, so no locking with the shared State is needed.
+func saveSide(dir, name string, v any) error {
+	if dir == "" {
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	tmp := filepath.Join(dir, name+".tmp")
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, filepath.Join(dir, name))
+}

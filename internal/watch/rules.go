@@ -103,6 +103,10 @@ func (r *Rules) Feed(ev Event, st *State) (Alert, bool) {
 		return r.direct(now, Alert{ID: "alert.key_removed", Severity: finding.Info, Args: map[string]string{"user": ev.User, "fp": fp}})
 	case SudoersChanged:
 		return r.direct(now, Alert{ID: "alert.sudoers_changed", Severity: finding.High, Args: map[string]string{"diff": ev.Detail}})
+	case ProcSuspicious:
+		reason := ev.Args["reason"]
+		return r.emit(st, now, Alert{ID: "alert.proc_" + reason, Severity: finding.High, Key: "proc:" + ev.Args["pid"] + ":" + reason,
+			Args: ev.Args, Fix: ProcFix(reason, ev.Args["pid"])})
 	}
 	return Alert{}, false
 }
@@ -205,4 +209,13 @@ func authorizedKeysPath(user string) string {
 		return "/root/.ssh/authorized_keys"
 	}
 	return "/home/" + user + "/.ssh/authorized_keys"
+}
+
+// ProcFix is the copy-pasteable response to a suspicious process: look first,
+// keep evidence when the file is gone, then stop it.
+func ProcFix(reason, pid string) string {
+	if reason == ReasonDeletedExec {
+		return "sudo cp /proc/" + pid + "/exe /root/suspect-" + pid + ".bin && sudo kill " + pid
+	}
+	return "sudo ls -l /proc/" + pid + "/exe /proc/" + pid + "/cwd && sudo kill " + pid
 }

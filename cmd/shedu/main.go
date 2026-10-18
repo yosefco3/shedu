@@ -137,6 +137,7 @@ func runDaemon(cfgPath string) int {
 		Notifier: notifier,
 		Auth:     watch.NewSource(),
 		Accounts: acc,
+		Watchers: []watch.Runner{watch.NewProcWatcher(cfg.StateDir)},
 		Rules:    watch.NewRules(cfg.BruteForceN),
 		State:    st,
 		RunCheck: checks.RunAll,

@@ -27,6 +27,7 @@ func Default() []Check {
 		NewPorts(),
 		NewFirewall(),
 		NewAccounts(),
+		NewProcesses(),
 	}
 }
 

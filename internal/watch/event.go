@@ -2,7 +2,10 @@
 // of Events, and (step 09) Events into Alerts.
 package watch
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Kind names what happened.
 type Kind string
@@ -36,4 +39,11 @@ type Event struct {
 	Method string // publickey | password | keyboard-interactive | ""
 	Detail string // sudo command, key fingerprint, or the raw line
 	Time   time.Time
+	Args   map[string]string // phase-2 details (pid, exe, destination, ...) for the alert text
+}
+
+// Runner is a background watcher the daemon starts in its own goroutine.
+// It owns its private state; save asks the daemon to persist the shared State.
+type Runner interface {
+	Run(ctx context.Context, st *State, out chan<- Event, save func() error)
 }

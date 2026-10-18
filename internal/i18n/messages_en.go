@@ -44,4 +44,9 @@ var en = map[string]Msg{
 	"alert.key_added":              {"🔑 New SSH key for {{.user}}: {{.fp}} {{.comment}}", "A key is a permanent entrance without a password. If you did not add it, delete that line now."},
 	"alert.key_removed":            {"SSH key removed for {{.user}}: {{.fp}}", "For your records."},
 	"alert.sudoers_changed":        {"⚙️ sudo rights changed", "{{.diff}}"},
+	"proc.tmp_exec":                {"A program is running from a temporary folder: {{.exe}}", "Process {{.comm}} (pid {{.pid}}, user {{.user}}) runs from {{.exe}}. Normal software almost never runs from /tmp, /var/tmp or /dev/shm, but malware droppers do. Command: {{.cmd}}"},
+	"proc.deleted_exec":            {"A running program has no file on disk: {{.exe}}", "Process {{.comm}} (pid {{.pid}}, user {{.user}}) keeps running although its file was deleted. Malware does this to hide. The fix saves a copy for investigation, then stops it. Command: {{.cmd}}"},
+	"proc.need_root":               {"Process checks were partial", "Run shedu with sudo to inspect every running program."},
+	"alert.proc_tmp_exec":          {"🚨 A program is running from a temporary folder: {{.exe}}", "Process {{.comm}} (pid {{.pid}}, user {{.user}}). Normal software almost never runs from /tmp, /var/tmp or /dev/shm, but malware droppers do. Command: {{.cmd}}"},
+	"alert.proc_deleted_exec":      {"🚨 A running program deleted its own file: {{.exe}}", "Process {{.comm}} (pid {{.pid}}, user {{.user}}) keeps running although its file is gone. Malware does this to hide. The fix saves a copy for investigation, then stops it. Command: {{.cmd}}"},
 }

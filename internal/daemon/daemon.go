@@ -25,6 +25,7 @@ type Daemon struct {
 	Notifier notify.Notifier
 	Auth     watch.Source           // login/sudo events
 	Accounts *watch.AccountsWatcher // user/key/sudoers events
+	Watchers []watch.Runner         // phase-2 watchers (processes, network, persistence, ...)
 	Rules    *watch.Rules
 	State    *watch.State
 	Clock    func() time.Time
@@ -66,6 +67,10 @@ func (d *Daemon) Run(ctx context.Context) error {
 	if d.Accounts != nil {
 		wg.Add(1)
 		go func() { defer wg.Done(); d.Accounts.Run(ctx, d.State, events, saver.request) }()
+	}
+	for _, w := range d.Watchers {
+		wg.Add(1)
+		go func(w watch.Runner) { defer wg.Done(); w.Run(ctx, d.State, events, saver.request) }(w)
 	}
 
 	if d.State.Fresh() {
