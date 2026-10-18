@@ -67,11 +67,40 @@ install_binary() {
   rm -rf "$tmp"
 }
 
+# --- unit (also rewritten on --upgrade, so hardening changes reach old installs) ---
+write_unit() {
+  cat > "$UNIT" <<'UNIT'
+[Unit]
+Description=Shedu — plain-language security watch for this server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/shedu run
+Restart=always
+RestartSec=5
+ProtectSystem=strict
+ReadWritePaths=/var/lib/shedu
+ProtectHome=read-only
+# PrivateTmp stays off: the scans must see the real /tmp, where droppers land.
+NoNewPrivileges=true
+MemoryMax=64M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+}
+
 if [ "$UPGRADE" -eq 1 ]; then
   OLD=$("$BIN" version 2>/dev/null || echo none)
   install_binary
   NEW=$("$BIN" version)
-  [ "$HAS_SYSTEMD" -eq 1 ] && systemctl restart shedu 2>/dev/null || true
+  if [ "$HAS_SYSTEMD" -eq 1 ] && [ -f "$UNIT" ]; then
+    write_unit
+    systemctl daemon-reload
+    systemctl restart shedu 2>/dev/null || true
+  fi
   echo "✔ shedu $OLD → $NEW"
   exit 0
 fi
@@ -140,27 +169,7 @@ fi
 
 # --- service --------------------------------------------------------------
 if [ "$HAS_SYSTEMD" -eq 1 ]; then
-  cat > "$UNIT" <<'UNIT'
-[Unit]
-Description=Shedu — plain-language security watch for this server
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-ExecStart=/usr/local/bin/shedu run
-Restart=always
-RestartSec=5
-ProtectSystem=strict
-ReadWritePaths=/var/lib/shedu
-ProtectHome=read-only
-# PrivateTmp stays off: the scans must see the real /tmp, where droppers land.
-NoNewPrivileges=true
-MemoryMax=64M
-Nice=10
-
-[Install]
-WantedBy=multi-user.target
-UNIT
+  write_unit
   systemctl daemon-reload
   systemctl enable --now shedu >/dev/null
 else
