@@ -46,7 +46,7 @@ func Text(r Report, lang i18n.Lang) string {
 	for _, it := range items {
 		fmt.Fprintf(&b, "\n%s %s\n", icons[it.Severity], it.Title)
 		if it.Explain != "" {
-			fmt.Fprintf(&b, "   %s\n", it.Explain)
+			fmt.Fprintf(&b, "   %s\n", strings.ReplaceAll(it.Explain, "\n", "\n   "))
 		}
 		if it.Fix != "" {
 			fmt.Fprintf(&b, "   $ %s\n", it.Fix)

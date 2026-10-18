@@ -65,4 +65,8 @@ var en = map[string]Msg{
 	"secrets.key_open":             {"{{.count}} private keys can be read by others", "Files: {{.paths}}. A private key is a password that never expires. It must be readable by its owner only, and never sit in a web folder."},
 	"secrets.history":              {"Passwords or tokens were typed into the shell history", "Files: {{.paths}}. Commands with passwords on the command line are saved in plain text. Anyone who gets into the account reads them. Clear the history and change those secrets."},
 	"secrets.need_root":            {"Secret checks were partial", "Run shedu with sudo to look in every user's files."},
+	"keys.inventory":               {"{{.count}} SSH keys can log in to this server", "Whoever holds one of these keys has a way in. Remove any you do not recognise.\nuser · key · name · file changed · last login\n{{.list}}"},
+	"keys.weak":                    {"Weak SSH key for {{.user}}: {{.type}} {{.bits}} bits {{.comment}}", "Keys this short can be broken with enough computing power. Create a modern key (ssh-keygen -t ed25519), add it, then delete this one."},
+	"keys.anonymous":               {"{{.count}} SSH keys have no name", "A key without a comment cannot be traced to a person or a laptop. When you are unsure whose it is, that is a reason to remove it."},
+	"keys.need_root":               {"Key inventory was partial", "Run shedu with sudo to list the keys of every user."},
 }

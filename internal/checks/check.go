@@ -30,6 +30,7 @@ func Default() []Check {
 		NewProcesses(),
 		NewPreload(),
 		NewSecrets(),
+		NewKeys(),
 	}
 }
 
