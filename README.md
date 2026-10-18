@@ -10,6 +10,19 @@ Hebrew or English, when something needs your attention.
 curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/install.sh | sudo bash
 ```
 
+## Who it is for
+
+**Anyone who runs their own Linux server (a VPS) without a security person.** The server is yours,
+so its security is too.
+
+- **Indie developers** running a few projects on one cheap server.
+- **Traders and bot operators**: the server holds API keys that are worth money, which makes it a target.
+- **Small businesses** with a WordPress site or an app on a server someone set up once and nobody maintains.
+- **Studios and freelancers** looking after several client servers.
+
+Not for you if your app runs on a managed platform (Railway, Vercel, Render, Heroku): there is no
+server of yours to watch, and the platform secures that layer.
+
 ## What it does
 
 - **Health score (0–100)** — pending security updates, password logins over SSH, databases
