@@ -110,6 +110,13 @@ func (r *Rules) Feed(ev Event, st *State) (Alert, bool) {
 	case OutboundNew:
 		return r.emit(st, now, Alert{ID: "alert.outbound_new", Severity: finding.Low, Key: "out:" + ev.Args["comm"] + ":" + ev.Args["ip"],
 			Args: ev.Args, Fix: "sudo ss -tnp dst " + ev.Args["ip"]})
+	case ProcLineage:
+		return r.emit(st, now, Alert{ID: "alert.proc_lineage", Severity: finding.High, Key: "lineage:" + ev.Args["pid"],
+			Args: ev.Args, Fix: ProcFix(ReasonTmpExec, ev.Args["pid"])})
+	case MassFileChange:
+		secs, _ := strconv.Atoi(ev.Args["seconds"])
+		return r.emit(st, now, Alert{ID: "alert.massfile", Severity: finding.Medium, Key: "massfile:" + ev.Args["dir"], Args: ev.Args,
+			Fix: fmt.Sprintf("sudo find %s -type f -mmin -%d | head -50", ev.Args["dir"], secs/60+1)})
 	case PersistenceNew:
 		sev := finding.Medium
 		if ev.Args["user_level"] != "" {

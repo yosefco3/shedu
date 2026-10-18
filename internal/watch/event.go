@@ -27,7 +27,8 @@ const (
 	OutboundNew    Kind = "outbound_new"    // process talks to a destination not seen before
 	OutboundBeacon Kind = "outbound_beacon" // connections to one destination at a regular rhythm
 	PersistenceNew Kind = "persistence_new" // new or changed cron job / systemd unit
-	ProcLineage    Kind = "proc_lineage"    // web server spawned a shell; mass file change
+	ProcLineage    Kind = "proc_lineage"    // web server spawned a shell
+	MassFileChange Kind = "mass_file"       // many files in a web root changed at once
 	PreloadChanged Kind = "preload_changed" // ld.so.preload or LD_PRELOAD
 	MinerSuspected Kind = "miner_suspected" // sustained CPU + suspicious binary or pool port
 )

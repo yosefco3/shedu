@@ -13,6 +13,7 @@ import (
 const (
 	ReasonTmpExec     = "tmp_exec"
 	ReasonDeletedExec = "deleted_exec"
+	ReasonLineage     = "lineage"
 )
 
 // tmpDirs are world-writable places a dropper writes to and runs from.
@@ -156,6 +157,9 @@ func (w *ProcWatcher) Tick() []Event {
 		if reason := SuspiciousExec(p); reason != "" {
 			report(p, reason, ProcSuspicious, nil)
 		}
+	}
+	for _, p := range SuspiciousLineage(procs) {
+		report(p, ReasonLineage, ProcLineage, map[string]string{"parent": ParentComm(procs, p), "ppid": strconv.Itoa(p.PPID)})
 	}
 	changed := len(evs) > 0
 	for key := range w.st.Reported { // forget processes that are gone
