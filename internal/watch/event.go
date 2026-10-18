@@ -25,6 +25,7 @@ const (
 	// phase 2 (behaviour watch)
 	ProcSuspicious Kind = "proc_suspicious" // runs from /tmp-like dir, or deleted binary
 	OutboundNew    Kind = "outbound_new"    // process talks to a destination not seen before
+	OutboundBeacon Kind = "outbound_beacon" // connections to one destination at a regular rhythm
 	PersistenceNew Kind = "persistence_new" // new or changed cron job / systemd unit
 	ProcLineage    Kind = "proc_lineage"    // web server spawned a shell; mass file change
 	PreloadChanged Kind = "preload_changed" // ld.so.preload or LD_PRELOAD

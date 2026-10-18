@@ -116,26 +116,7 @@ func NewProcWatcher(stateDir string) *ProcWatcher {
 
 // Run polls until ctx ends.
 func (w *ProcWatcher) Run(ctx context.Context, _ *State, out chan<- Event, _ func() error) {
-	interval := w.Interval
-	if interval <= 0 {
-		interval = 30 * time.Second
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		for _, ev := range w.Tick() {
-			select {
-			case out <- ev:
-			case <-ctx.Done():
-				return
-			}
-		}
-		select {
-		case <-ticker.C:
-		case <-ctx.Done():
-			return
-		}
-	}
+	runTicker(ctx, w.Interval, out, w.Tick)
 }
 
 // Tick takes one snapshot and returns the new events.

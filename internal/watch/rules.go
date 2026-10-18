@@ -107,6 +107,12 @@ func (r *Rules) Feed(ev Event, st *State) (Alert, bool) {
 		reason := ev.Args["reason"]
 		return r.emit(st, now, Alert{ID: "alert.proc_" + reason, Severity: finding.High, Key: "proc:" + ev.Args["pid"] + ":" + reason,
 			Args: ev.Args, Fix: ProcFix(reason, ev.Args["pid"])})
+	case OutboundNew:
+		return r.emit(st, now, Alert{ID: "alert.outbound_new", Severity: finding.Low, Key: "out:" + ev.Args["comm"] + ":" + ev.Args["ip"],
+			Args: ev.Args, Fix: "sudo ss -tnp dst " + ev.Args["ip"]})
+	case OutboundBeacon:
+		return r.emit(st, now, Alert{ID: "alert.outbound_beacon", Severity: finding.Medium, Key: "beacon:" + ev.Args["comm"] + ":" + ev.Args["ip"],
+			Args: ev.Args, Fix: "sudo ss -tnp dst " + ev.Args["ip"]})
 	}
 	return Alert{}, false
 }

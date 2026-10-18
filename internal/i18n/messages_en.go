@@ -49,4 +49,6 @@ var en = map[string]Msg{
 	"proc.need_root":               {"Process checks were partial", "Run shedu with sudo to inspect every running program."},
 	"alert.proc_tmp_exec":          {"🚨 A program is running from a temporary folder: {{.exe}}", "Process {{.comm}} (pid {{.pid}}, user {{.user}}). Normal software almost never runs from /tmp, /var/tmp or /dev/shm, but malware droppers do. Command: {{.cmd}}"},
 	"alert.proc_deleted_exec":      {"🚨 A running program deleted its own file: {{.exe}}", "Process {{.comm}} (pid {{.pid}}, user {{.user}}) keeps running although its file is gone. Malware does this to hide. The fix saves a copy for investigation, then stops it. Command: {{.cmd}}"},
+	"alert.outbound_new":           {"New outside destination: {{.comm}} connected to {{.ip}}:{{.port}}{{if .private}} (local network){{end}}", "This program has not talked to this address for a long time. Usually harmless (updates, APIs). If you do not recognise the program or the address, take a closer look."},
+	"alert.outbound_beacon":        {"Possible beacon: {{.comm}} calls {{.ip}}:{{.port}} every {{.every}}", "{{.count}} connections at a machine-regular rhythm. Malware waiting for orders calls home exactly like this, but so do backup and monitoring tools. If you recognise it, ignore this."},
 }
