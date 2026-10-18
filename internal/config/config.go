@@ -25,12 +25,17 @@ type Config struct {
 	BruteForceN    int       // BRUTE_FORCE_THRESHOLD, default 5
 	StateDir       string    // STATE_DIR, default /var/lib/shedu
 	Hostname       string    // HOSTNAME override; default os.Hostname()
+
+	Sensitivity Sensitivity // SENSITIVITY low|normal|high, default normal
+	Thresholds  Thresholds  // resolved from Sensitivity, then per-key overrides
+	Warnings    []string    // non-fatal problems for the daemon to log
 }
 
 // Defaults returns the configuration used when the file is absent or a key is missing.
 func Defaults() Config {
 	host, _ := os.Hostname()
-	return Config{Lang: i18n.He, DailyReportAt: "08:00", BruteForceN: 5, StateDir: "/var/lib/shedu", Hostname: host}
+	return Config{Lang: i18n.He, DailyReportAt: "08:00", BruteForceN: 5, StateDir: "/var/lib/shedu", Hostname: host,
+		Sensitivity: Normal, Thresholds: ThresholdsFor(Normal)}
 }
 
 // Load reads path; a missing file yields Defaults() with no error.
@@ -51,6 +56,11 @@ func Load(path string) (Config, error) {
 // so that a typo in install.sh never silently disables alerts.
 func Parse(r io.Reader) (Config, error) {
 	c := Defaults()
+	type override struct {
+		line     int
+		key, val string
+	}
+	var overrides []override
 	sc := bufio.NewScanner(r)
 	for n := 1; sc.Scan(); n++ {
 		line := strings.TrimSpace(sc.Text())
@@ -84,11 +94,31 @@ func Parse(r io.Reader) (Config, error) {
 			c.StateDir = val
 		case "HOSTNAME":
 			c.Hostname = val
+		case "SENSITIVITY":
+			s, ok := parseSensitivity(val)
+			if !ok {
+				c.Warnings = append(c.Warnings, fmt.Sprintf("guard.conf line %d: SENSITIVITY %q is not low, normal or high; using normal", n, val))
+			}
+			c.Sensitivity = s
 		default:
+			if isThresholdKey(key) {
+				overrides = append(overrides, override{n, key, val})
+				continue
+			}
 			return Config{}, fmt.Errorf("guard.conf line %d: unknown key %q", n, key)
 		}
 	}
-	return c, sc.Err()
+	if err := sc.Err(); err != nil {
+		return Config{}, err
+	}
+	// The dial sets every threshold; a per-key override always wins, wherever it sits in the file.
+	c.Thresholds = ThresholdsFor(c.Sensitivity)
+	for _, o := range overrides {
+		if err := applyOverride(&c.Thresholds, o.key, o.val); err != nil {
+			return Config{}, fmt.Errorf("guard.conf line %d: %v", o.line, err)
+		}
+	}
+	return c, nil
 }
 
 // TelegramEnabled reports whether both Telegram settings are present.

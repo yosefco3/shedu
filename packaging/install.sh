@@ -108,6 +108,21 @@ if [ ! -f "$CONF" ]; then
     echo "LANG=$LANG_OPT"
     echo "DAILY_REPORT_AT=08:00"
     echo "BRUTE_FORCE_THRESHOLD=5"
+    cat <<'TUNING'
+
+# How noisy Shedu is: low | normal | high. Everything below follows this dial.
+# SENSITIVITY=normal
+#
+# Expert overrides (uncomment to pin one value; it always beats the dial).
+# Defaults shown are for normal (low / high in brackets).
+# MINER_CPU_PERCENT=80      # sustained CPU % before a process looks like a miner (90 / 70)
+# OUTBOUND_NEW_DAYS=30      # a destination unseen this many days counts as new (90 / 7)
+# MASSFILE_COUNT=200        # files changed ... (500 / 50)
+# MASSFILE_WINDOW=60s       # ... within this window
+# OUTBOUND_ALERTS=beacon    # off | beacon | all (high: all)
+# SECRET_AUDIT=off          # on = live secret-read alerts, needs auditd
+# CLAMAV_AT=03:00           # nightly ClamAV scan if installed; empty disables
+TUNING
     [ -n "$TOKEN" ] && echo "TELEGRAM_TOKEN=\"$TOKEN\""
     [ -n "$CHAT_ID" ] && echo "TELEGRAM_CHAT_ID=\"$CHAT_ID\""
   } > "$CONF"

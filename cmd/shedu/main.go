@@ -117,6 +117,9 @@ func runDaemon(cfgPath string) int {
 		logger.Println("shedu:", err)
 		return 1
 	}
+	for _, w := range cfg.Warnings {
+		logger.Println("shedu:", w)
+	}
 	st, err := watch.LoadState(cfg.StateDir)
 	if err != nil {
 		logger.Println("shedu:", err)
