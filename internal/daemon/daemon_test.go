@@ -164,3 +164,41 @@ func waitFor(t *testing.T, cond func() bool) {
 	}
 	t.Fatal("condition not met in time")
 }
+
+// oneShot is a phase-2 watcher that reports one event, then idles.
+type oneShot struct{ ev watch.Event }
+
+func (o oneShot) Run(ctx context.Context, _ *watch.State, out chan<- watch.Event, _ func() error) {
+	select {
+	case out <- o.ev:
+	case <-ctx.Done():
+		return
+	}
+	<-ctx.Done()
+}
+
+func TestDaemonRunsWatchers(t *testing.T) {
+	rec := &recorder{}
+	st := &watch.State{KnownIPs: map[string]time.Time{"1.2.3.4": time.Now()}, SudoUsers: map[string]time.Time{}, LastAlerts: map[string]time.Time{}}
+	d := &Daemon{
+		Cfg:      config.Config{Lang: i18n.He, Hostname: "web-1", StateDir: t.TempDir()},
+		Notifier: rec,
+		Rules:    watch.NewRules(5),
+		State:    st,
+		Log:      log.New(io.Discard, "", 0),
+		Watchers: []watch.Runner{oneShot{watch.Event{Kind: watch.ProcSuspicious, Args: map[string]string{
+			"reason": watch.ReasonTmpExec, "pid": "4242", "exe": "/tmp/x", "comm": "x", "user": "www-data", "cmd": "/tmp/x 600"}}}},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error)
+	go func() { done <- d.Run(ctx) }()
+	waitFor(t, func() bool { return rec.count() == 1 })
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	msg := rec.msgs[0]
+	if !strings.Contains(msg, "תוכנה רצה מתיקייה זמנית: /tmp/x") || !strings.Contains(msg, "<code>sudo ls -l /proc/4242/exe") {
+		t.Errorf("alert = %q", msg)
+	}
+}

@@ -153,7 +153,7 @@ RestartSec=5
 ProtectSystem=strict
 ReadWritePaths=/var/lib/shedu
 ProtectHome=read-only
-PrivateTmp=true
+# PrivateTmp stays off: the scans must see the real /tmp, where droppers land.
 NoNewPrivileges=true
 MemoryMax=64M
 Nice=10

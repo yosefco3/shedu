@@ -18,7 +18,18 @@ curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/insta
 - **Login watch** — brute-force attempts, a successful login from an address never seen
   before, a login right after a burst of failures.
 - **Account watch** — new users, new SSH keys in any `authorized_keys`, changed sudo rights.
+- **Behaviour watch** — programs running from `/tmp` or with their file deleted, a web server
+  that suddenly opens a shell, likely crypto-miners, new cron jobs and systemd units,
+  injected libraries (`ld.so.preload`, `LD_PRELOAD`), mass file changes in your web folder,
+  and which program talks to which outside address (regular "beacons" are flagged).
+- **Secrets and keys** — `.env`, `.git` and backups sitting in a public web folder, private
+  keys others can read, passwords typed into shell history, and a list of every SSH key that
+  can log in: whose it is, how old, when it was last used.
+- **ClamAV**, if you already have it: a nightly scan, with an alert when something is found.
 - **Daily report** to Telegram at 08:00, alerts within a minute.
+
+One dial if it is too quiet or too noisy, in `/etc/shedu/guard.conf`:
+`SENSITIVITY=low|normal|high` (default `normal`). You set how noisy Shedu is, not what is safe.
 
 ## Try it without installing
 
@@ -40,8 +51,8 @@ sudo ./bin/shedu check --json
 
 ## Status
 
-Phase 1 (the agent) is implemented and released. A central dashboard, behaviour detection
-and more are planned.
+Phase 1 (the agent) and phase 2 (behaviour watch) are implemented. A central dashboard and
+more are planned.
 
 ## License
 

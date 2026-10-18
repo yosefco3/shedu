@@ -86,6 +86,12 @@ func clamCommand() func(context.Context, []string) ([]byte, error) {
 		name, args = p, []string{"--fdpass", "--multiscan", "--infected", "--no-summary"}
 	} else if p, err := exec.LookPath("clamscan"); err == nil {
 		name, args = "nice", []string{"-n", "19", p, "-r", "--infected", "--no-summary"}
+		// clamscan loads ~1 GB of signatures; the service is capped at 64 MB.
+		// Run it as its own transient unit so the cap does not kill it.
+		if sr, err := exec.LookPath("systemd-run"); err == nil && os.Getenv("INVOCATION_ID") != "" {
+			name, args = sr, []string{"--quiet", "--wait", "--pipe", "--collect", "--nice=19", "-p", "IOSchedulingClass=idle",
+				p, "-r", "--infected", "--no-summary"}
+		}
 	} else {
 		return nil
 	}
