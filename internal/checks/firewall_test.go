@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/yosefco3/shedu/internal/finding"
@@ -58,5 +59,32 @@ func TestFirewallRun(t *testing.T) {
 	fs, _ := fw(t, "", "iptables_empty.txt", exec.ErrNotFound, nil, "ENABLED=no").Run(context.Background())
 	if fs[0].Severity != finding.Medium || fs[0].Fix != fixUFW {
 		t.Errorf("firewall.none must be medium with the ufw fix: %+v", fs[0])
+	}
+}
+
+func TestDockerBypass(t *testing.T) {
+	nat := fixture(t, "iptables_nat_docker.txt")
+	if got := strings.Join(DockerPublished(nat), ","); got != "3306,8080" {
+		t.Errorf("published = %s (6379 is bound to 127.0.0.1)", got)
+	}
+	f := &Firewall{
+		UFWConf:   func() ([]byte, error) { return []byte("ENABLED=yes\n"), nil },
+		DockerNAT: func(context.Context) ([]byte, error) { return nat, nil },
+	}
+	fs, err := f.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fs) != 1 || fs[0].ID != "firewall.docker_bypass" || fs[0].Args["ports"] != "3306, 8080" ||
+		!strings.HasPrefix(fs[0].Fix, "sudo iptables -I DOCKER-USER -p tcp -m conntrack --ctorigdstport 3306 --ctdir ORIGINAL -j DROP") {
+		t.Fatalf("findings: %+v", fs)
+	}
+	f.DockerNAT = nil // no docker on this host
+	if fs, _ := f.Run(context.Background()); len(fs) != 0 {
+		t.Errorf("ufw on, no docker: %+v", fs)
+	}
+	f.DockerNAT = func(context.Context) ([]byte, error) { return []byte("-N DOCKER\n"), nil }
+	if fs, _ := f.Run(context.Background()); len(fs) != 0 {
+		t.Errorf("docker without published ports: %+v", fs)
 	}
 }

@@ -1,0 +1,6 @@
+-N DOCKER
+-A DOCKER -i docker0 -j RETURN
+-A DOCKER -i br-1a2b3c4d5e6f -j RETURN
+-A DOCKER ! -i br-1a2b3c4d5e6f -p tcp -m tcp --dport 3306 -j DNAT --to-destination 172.18.0.2:3306
+-A DOCKER -d 127.0.0.1/32 ! -i br-1a2b3c4d5e6f -p tcp -m tcp --dport 6379 -j DNAT --to-destination 172.18.0.3:6379
+-A DOCKER ! -i docker0 -p tcp -m tcp --dport 8080 -j DNAT --to-destination 172.17.0.2:80

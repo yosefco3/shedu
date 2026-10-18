@@ -16,7 +16,7 @@ var en = map[string]Msg{
 	"ssh.x11_forwarding":  {"X11 forwarding is enabled", "Almost no server needs it. Turning it off removes one more attack path."},
 	"ssh.need_root":       {"SSH settings could not be read", "Run shedu with sudo to audit the SSH configuration."},
 
-	"ports.db_public":  {"Your {{.service}} (port {{.port}}) is open to the whole internet", "Databases and caches should only talk to the applications on this server. Exposed, they are found within minutes and are often unprotected by default. Bind it to 127.0.0.1 or block the port."},
+	"ports.db_public":  {"Your {{.service}} (port {{.port}}) is open to {{if .lan}}your whole local network{{else}}the whole internet{{end}}", "Databases and caches should only talk to the applications on this server. Exposed, they are found within minutes and are often unprotected by default. Bind it to 127.0.0.1 or block the port."},
 	"ports.dev_public": {"A development-style port ({{.port}}) is open to the internet", "Ports like 3000 or 8080 usually run test servers without authentication. Make sure that is intended."},
 	"ports.summary":    {"{{.count}} ports reachable from the internet: {{.list}}", "This is what the world sees. Everything listed here should be something you deliberately offer."},
 
@@ -70,4 +70,5 @@ var en = map[string]Msg{
 	"keys.anonymous":               {"{{.count}} SSH keys have no name", "A key without a comment cannot be traced to a person or a laptop. When you are unsure whose it is, that is a reason to remove it."},
 	"keys.need_root":               {"Key inventory was partial", "Run shedu with sudo to list the keys of every user."},
 	"alert.clamav":                 {"🦠 ClamAV found {{.count}} infected files", "The nightly scan matched known malware:\n{{.list}}\nShedu changed nothing. Look at each file; the fix moves them to a locked folder so nothing can run them."},
+	"firewall.docker_bypass":       {"Docker opens ports past your firewall: {{.ports}}", "ufw is on, so it looks closed, but Docker writes its own rules ahead of ufw. Containers published on these ports are reachable from outside whatever ufw says. Publish them on 127.0.0.1 unless the world should reach them."},
 }

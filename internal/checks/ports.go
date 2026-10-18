@@ -33,6 +33,7 @@ type Ports struct {
 	Open    func(proto string) (io.ReadCloser, error) // /proc/net/tcp or /proc/net/tcp6
 	Resolve func(inode uint64) (pid int, comm string) // socket inode → owning process
 	HasUFW  bool                                      // decides the fix command
+	LANOnly func() bool                               // host is reachable only from its local network
 }
 
 // NewPorts returns the production collector.
@@ -42,6 +43,7 @@ func NewPorts() *Ports {
 		Open:    func(proto string) (io.ReadCloser, error) { return os.Open("/proc/net/" + proto) },
 		Resolve: resolveInode(),
 		HasUFW:  ufwErr == nil,
+		LANOnly: func() bool { return IsPrivateHost(hostAddrs()) && !IsCloudVM(readDMI()) },
 	}
 }
 
@@ -111,6 +113,7 @@ func (p *Ports) analyse(ls []Listener) []finding.Finding {
 	}
 	sort.Ints(ports)
 
+	lan := p.LANOnly != nil && p.LANOnly()
 	var fs []finding.Finding
 	var summary []string
 	for _, port := range ports {
@@ -121,11 +124,18 @@ func (p *Ports) analyse(ls []Listener) []finding.Finding {
 		}
 		summary = append(summary, label)
 		if svc, ok := internalServices[port]; ok {
-			fs = append(fs, finding.Finding{
+			f := finding.Finding{
 				ID: "ports.db_public", Severity: svc.sev, Fix: p.fix(port, proc),
 				Args:     map[string]string{"port": strconv.Itoa(port), "service": svc.name, "process": proc},
 				Evidence: fmt.Sprintf("tcp *:%d LISTEN (%s)", port, proc),
-			})
+			}
+			if lan { // only the local network can reach it: serious, not an emergency
+				f.Args["lan"] = "1"
+				if f.Severity > finding.High {
+					f.Severity = finding.High
+				}
+			}
+			fs = append(fs, f)
 		} else if devPorts[port] {
 			fs = append(fs, finding.Finding{
 				ID: "ports.dev_public", Severity: finding.Info,
@@ -242,4 +252,59 @@ func scanProcFDs() map[uint64]int {
 		}
 	}
 	return table
+}
+
+// IsPrivateHost reports whether every routable address of this host is
+// private (RFC 1918, or IPv6 unique-local): nothing on the internet can
+// connect to it directly. Loopback and link-local addresses are ignored.
+func IsPrivateHost(addrs []net.IP) bool {
+	seen := false
+	for _, ip := range addrs {
+		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+			continue
+		}
+		if !ip.IsPrivate() {
+			return false
+		}
+		seen = true
+	}
+	return seen
+}
+
+// IsCloudVM reports DMI vendor strings of clouds that put a private address
+// on the interface and map a public IP to it (AWS, GCP, Azure, ...). Such a
+// host looks private but is on the internet.
+func IsCloudVM(dmi string) bool {
+	d := strings.ToLower(dmi)
+	for _, v := range []string{"amazon", "google", "microsoft corporation", "alibaba", "oraclecloud", "openstack", "digitalocean", "hetzner", "linode", "vultr", "scaleway", "ovh", "exoscale", "upcloud"} {
+		if strings.Contains(d, v) {
+			return true
+		}
+	}
+	return false
+}
+
+func hostAddrs() []net.IP {
+	as, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	var out []net.IP
+	for _, a := range as {
+		if n, ok := a.(*net.IPNet); ok {
+			out = append(out, n.IP)
+		}
+	}
+	return out
+}
+
+// readDMI joins the firmware vendor strings; unreadable files are skipped.
+func readDMI() string {
+	var b strings.Builder
+	for _, f := range []string{"sys_vendor", "product_name", "bios_vendor", "chassis_asset_tag"} {
+		v, _ := os.ReadFile("/sys/class/dmi/id/" + f)
+		b.Write(v)
+		b.WriteByte(' ')
+	}
+	return b.String()
 }

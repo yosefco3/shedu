@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/yosefco3/shedu/internal/finding"
+	"github.com/yosefco3/shedu/internal/i18n"
 )
 
 func TestParseHexAddr(t *testing.T) {
@@ -115,5 +116,54 @@ func TestPortsFixWithoutUFW(t *testing.T) {
 		if f.ID == "ports.db_public" && !strings.Contains(f.Fix, "apt install -y ufw") {
 			t.Errorf("without ufw the fix must install it: %q", f.Fix)
 		}
+	}
+}
+
+func TestPortsLANOnly(t *testing.T) {
+	p := testPorts(t, true)
+	p.LANOnly = func() bool { return true }
+	fs, _ := p.Run(context.Background())
+	for _, f := range fs {
+		if f.ID != "ports.db_public" {
+			continue
+		}
+		if f.Severity != finding.High || f.Args["lan"] != "1" {
+			t.Errorf("LAN-only redis must be High with lan wording: %+v", f)
+		}
+		if m := i18n.Render(i18n.En, f.ID, f.Args); !strings.Contains(m.Title, "local network") {
+			t.Errorf("title %q", m.Title)
+		}
+		if m := i18n.Render(i18n.He, f.ID, f.Args); !strings.Contains(m.Title, "הרשת המקומית") {
+			t.Errorf("he title %q", m.Title)
+		}
+		return
+	}
+	t.Error("no db finding")
+}
+
+func TestIsPrivateHost(t *testing.T) {
+	ips := func(ss ...string) []net.IP {
+		var out []net.IP
+		for _, s := range ss {
+			out = append(out, net.ParseIP(s))
+		}
+		return out
+	}
+	cases := []struct {
+		addrs []net.IP
+		want  bool
+	}{
+		{ips("127.0.0.1", "10.145.48.106", "172.17.0.1", "fe80::1", "::1"), true},
+		{ips("127.0.0.1", "192.168.1.5", "2a01:4f8::1"), false}, // global IPv6
+		{ips("127.0.0.1", "203.0.113.7"), false},
+		{ips("127.0.0.1"), false}, // nothing routable: unknown, assume public
+	}
+	for _, c := range cases {
+		if got := IsPrivateHost(c.addrs); got != c.want {
+			t.Errorf("%v: got %v", c.addrs, got)
+		}
+	}
+	if !IsCloudVM("Amazon EC2 t3.micro Amazon EC2 ") || !IsCloudVM("Google Google Compute Engine ") || IsCloudVM("ASUSTeK COMPUTER INC. VivoBook ") {
+		t.Error("IsCloudVM")
 	}
 }
