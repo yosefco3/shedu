@@ -143,6 +143,7 @@ func runDaemon(cfgPath string) int {
 			watch.NewPersistenceWatcher(cfg.StateDir),
 			watch.NewMassFileWatcher(cfg.Thresholds),
 			watch.NewPreloadWatcher(cfg.StateDir),
+			watch.NewClamWatcher(cfg.Thresholds.ClamAVAt, logger.Printf),
 		},
 		Rules:    watch.NewRules(cfg.BruteForceN),
 		State:    st,

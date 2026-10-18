@@ -31,6 +31,7 @@ const (
 	MassFileChange Kind = "mass_file"       // many files in a web root changed at once
 	PreloadChanged Kind = "preload_changed" // ld.so.preload or LD_PRELOAD
 	MinerSuspected Kind = "miner_suspected" // sustained CPU + suspicious binary or pool port
+	ClamDetected   Kind = "clam_detected"   // the nightly ClamAV scan found infected files
 )
 
 // Event is one security-relevant thing that happened on the host.

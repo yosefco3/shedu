@@ -1,0 +1,4 @@
+/home/bob/Downloads/invoice.pdf.exe: Win.Trojan.Agent-123456 FOUND
+/var/www/html/wp-content/uploads/2026/x: y.php: Php.Webshell.Generic-1 FOUND
+/var/www/html/index.php: OK
+LibClamAV Warning: cannot open /proc/1/mem

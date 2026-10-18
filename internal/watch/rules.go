@@ -127,6 +127,9 @@ func (r *Rules) Feed(ev Event, st *State) (Alert, bool) {
 		}
 		return r.emit(st, now, Alert{ID: "alert.preload_env", Severity: finding.High, Key: "preload:" + ev.Args["pid"], Args: ev.Args,
 			Fix: PreloadEnvFix(ev.Args["pid"])})
+	case ClamDetected:
+		return r.direct(now, Alert{ID: "alert.clamav", Severity: finding.High, Args: ev.Args,
+			Fix: "sudo mkdir -p /root/quarantine && sudo mv " + ev.Args["paths"] + " /root/quarantine/ && sudo chmod -R 000 /root/quarantine"})
 	case PersistenceNew:
 		sev := finding.Medium
 		if ev.Args["user_level"] != "" {

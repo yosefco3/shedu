@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -170,18 +168,9 @@ func (d *Daemon) sendDaily(ctx context.Context) {
 
 // NextDaily returns the next occurrence of "HH:MM" strictly after now, in now's location.
 func NextDaily(now time.Time, hhmm string) (time.Time, error) {
-	parts := strings.Split(hhmm, ":")
-	if len(parts) != 2 {
-		return time.Time{}, fmt.Errorf("DAILY_REPORT_AT %q: want HH:MM", hhmm)
-	}
-	h, err1 := strconv.Atoi(parts[0])
-	m, err2 := strconv.Atoi(parts[1])
-	if err1 != nil || err2 != nil || h < 0 || h > 23 || m < 0 || m > 59 {
-		return time.Time{}, fmt.Errorf("DAILY_REPORT_AT %q: want HH:MM", hhmm)
-	}
-	next := time.Date(now.Year(), now.Month(), now.Day(), h, m, 0, 0, now.Location())
-	if !next.After(now) {
-		next = next.AddDate(0, 0, 1)
+	next, err := watch.NextAt(now, hhmm)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("DAILY_REPORT_AT %v", err)
 	}
 	return next, nil
 }

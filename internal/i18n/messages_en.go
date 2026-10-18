@@ -69,4 +69,5 @@ var en = map[string]Msg{
 	"keys.weak":                    {"Weak SSH key for {{.user}}: {{.type}} {{.bits}} bits {{.comment}}", "Keys this short can be broken with enough computing power. Create a modern key (ssh-keygen -t ed25519), add it, then delete this one."},
 	"keys.anonymous":               {"{{.count}} SSH keys have no name", "A key without a comment cannot be traced to a person or a laptop. When you are unsure whose it is, that is a reason to remove it."},
 	"keys.need_root":               {"Key inventory was partial", "Run shedu with sudo to list the keys of every user."},
+	"alert.clamav":                 {"🦠 ClamAV found {{.count}} infected files", "The nightly scan matched known malware:\n{{.list}}\nShedu changed nothing. Look at each file; the fix moves them to a locked folder so nothing can run them."},
 }
