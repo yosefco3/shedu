@@ -104,3 +104,14 @@ func TestStdoutStripsHTML(t *testing.T) {
 		t.Errorf("got %q", sb.String())
 	}
 }
+
+func TestTelegramErrorHidesToken(t *testing.T) {
+	tg := &Telegram{Token: "123456:SECRET-TOKEN", ChatID: "1", BaseURL: "http://127.0.0.1:1"} // nothing listens
+	err := tg.Send(context.Background(), "hi")
+	if err == nil {
+		t.Fatal("want a connection error")
+	}
+	if strings.Contains(err.Error(), "SECRET-TOKEN") || !strings.Contains(err.Error(), "<token>") {
+		t.Errorf("token must be redacted: %v", err)
+	}
+}

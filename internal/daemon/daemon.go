@@ -32,6 +32,10 @@ type Daemon struct {
 
 	// Backoff bounds for restarting a source that ended (journalctl died, file vanished).
 	MinBackoff, MaxBackoff time.Duration
+	// Backoff bounds for re-sending a message that failed (default 10s .. 5m).
+	RetryMin, RetryMax time.Duration
+
+	out *outbox
 }
 
 // Run blocks until ctx is done. It returns after the state has been saved.
@@ -55,8 +59,14 @@ func (d *Daemon) Run(ctx context.Context) error {
 	saver := newSaver(d.State, d.Cfg.StateDir, d.Log)
 	defer saver.flush()
 
-	events := make(chan watch.Event, 256)
 	var wg sync.WaitGroup
+	if d.Notifier != nil {
+		d.out = newOutbox(d.Notifier, d.Log, d.RetryMin, d.RetryMax)
+		wg.Add(1)
+		go func() { defer wg.Done(); d.out.run(ctx) }()
+	}
+
+	events := make(chan watch.Event, 256)
 
 	if d.Auth != nil {
 		wg.Add(1)
@@ -145,14 +155,10 @@ func (d *Daemon) pump(ctx context.Context, out chan<- watch.Event) {
 	}
 }
 
-func (d *Daemon) send(ctx context.Context, text string) {
-	if d.Notifier == nil {
-		return
-	}
-	sctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-	if err := d.Notifier.Send(sctx, text); err != nil {
-		d.Log.Printf("notify: %v", err)
+// send queues text for delivery; the outbox retries until it gets through.
+func (d *Daemon) send(_ context.Context, text string) {
+	if d.out != nil {
+		d.out.put(text)
 	}
 }
 

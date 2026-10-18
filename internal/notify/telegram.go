@@ -55,7 +55,8 @@ func (t *Telegram) sendOne(ctx context.Context, text string) error {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("telegram: %w", err)
+		// net/http errors quote the full URL, and the URL holds the bot token.
+		return fmt.Errorf("telegram: %s", t.redact(err.Error()))
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
@@ -70,6 +71,14 @@ func (t *Telegram) sendOne(ctx context.Context, text string) error {
 		apiErr.Description = strings.TrimSpace(string(raw))
 	}
 	return fmt.Errorf("telegram: HTTP %d: %s", resp.StatusCode, apiErr.Description)
+}
+
+// redact removes the bot token from s so it never reaches a log.
+func (t *Telegram) redact(s string) string {
+	if t.Token == "" {
+		return s
+	}
+	return strings.ReplaceAll(s, t.Token, "<token>")
 }
 
 // Split cuts text into chunks of at most max runes, breaking on line boundaries
