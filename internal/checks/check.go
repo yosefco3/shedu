@@ -29,6 +29,7 @@ func Default() []Check {
 		NewAccounts(),
 		NewProcesses(),
 		NewPreload(),
+		NewSecrets(),
 	}
 }
 

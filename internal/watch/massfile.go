@@ -11,8 +11,8 @@ import (
 	"github.com/yosefco3/shedu/internal/config"
 )
 
-// webRoots are the folders whose content an intruder defaces or encrypts.
-var webRoots = []string{"var/www", "srv/www", "srv/http", "usr/share/nginx/html"}
+// WebRoots are the folders whose content an intruder defaces or encrypts.
+var WebRoots = []string{"var/www", "srv/www", "srv/http", "usr/share/nginx/html"}
 
 const (
 	massFileMaxFiles = 50_000 // stop counting here: a huge tree must not cost real CPU
@@ -66,7 +66,7 @@ type MassFileWatcher struct {
 func NewMassFileWatcher(t config.Thresholds) *MassFileWatcher {
 	root := os.DirFS("/")
 	var dirs []string
-	for _, d := range webRoots {
+	for _, d := range WebRoots {
 		if st, err := fs.Stat(root, d); err == nil && st.IsDir() {
 			dirs = append(dirs, d)
 		}
