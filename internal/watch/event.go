@@ -18,6 +18,14 @@ const (
 	KeyAdded       Kind = "key_added"       // step 10
 	KeyRemoved     Kind = "key_removed"     // step 10
 	SudoersChanged Kind = "sudoers_changed" // step 10
+
+	// phase 2 (behaviour watch)
+	ProcSuspicious Kind = "proc_suspicious" // runs from /tmp-like dir, or deleted binary
+	OutboundNew    Kind = "outbound_new"    // process talks to a destination not seen before
+	PersistenceNew Kind = "persistence_new" // new or changed cron job / systemd unit
+	ProcLineage    Kind = "proc_lineage"    // web server spawned a shell; mass file change
+	PreloadChanged Kind = "preload_changed" // ld.so.preload or LD_PRELOAD
+	MinerSuspected Kind = "miner_suspected" // sustained CPU + suspicious binary or pool port
 )
 
 // Event is one security-relevant thing that happened on the host.
