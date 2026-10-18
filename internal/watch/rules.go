@@ -117,6 +117,10 @@ func (r *Rules) Feed(ev Event, st *State) (Alert, bool) {
 		secs, _ := strconv.Atoi(ev.Args["seconds"])
 		return r.emit(st, now, Alert{ID: "alert.massfile", Severity: finding.Medium, Key: "massfile:" + ev.Args["dir"], Args: ev.Args,
 			Fix: fmt.Sprintf("sudo find %s -type f -mmin -%d | head -50", ev.Args["dir"], secs/60+1)})
+	case MinerSuspected:
+		pid := ev.Args["pid"]
+		return r.emit(st, now, Alert{ID: "alert.miner", Severity: finding.High, Key: "miner:" + pid, Args: ev.Args,
+			Fix: "top -b -n1 | head -15; sudo ls -l /proc/" + pid + "/exe && sudo kill " + pid})
 	case PersistenceNew:
 		sev := finding.Medium
 		if ev.Args["user_level"] != "" {

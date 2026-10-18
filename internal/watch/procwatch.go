@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/yosefco3/shedu/internal/config"
 )
 
 // Reasons returned by SuspiciousExec; they are also the alert/finding suffixes.
@@ -14,6 +16,7 @@ const (
 	ReasonTmpExec     = "tmp_exec"
 	ReasonDeletedExec = "deleted_exec"
 	ReasonLineage     = "lineage"
+	ReasonMiner       = "miner"
 )
 
 // tmpDirs are world-writable places a dropper writes to and runs from.
@@ -106,13 +109,17 @@ type ProcWatcher struct {
 	StateDir string
 	UserName func(uid int) string
 	Clock    func() time.Time
+	T        config.Thresholds
 
-	st *procState
+	st     *procState
+	prev   map[string]Process // last sample, for CPU deltas
+	prevAt time.Time
+	hot    map[string]int // consecutive samples above the miner CPU threshold
 }
 
 // NewProcWatcher returns the production watcher.
-func NewProcWatcher(stateDir string) *ProcWatcher {
-	return &ProcWatcher{Root: newProcFS("/proc"), Interval: 30 * time.Second, StateDir: stateDir, UserName: LookupUser, Clock: time.Now}
+func NewProcWatcher(stateDir string, t config.Thresholds) *ProcWatcher {
+	return &ProcWatcher{Root: newProcFS("/proc"), Interval: 30 * time.Second, StateDir: stateDir, UserName: LookupUser, Clock: time.Now, T: t}
 }
 
 // Run polls until ctx ends.
@@ -141,7 +148,6 @@ func (w *ProcWatcher) Tick() []Event {
 	alive := map[string]bool{}
 	report := func(p Process, reason string, kind Kind, extra map[string]string) {
 		key := procKey(p) + ":" + reason
-		alive[key] = true
 		if _, done := w.st.Reported[key]; done {
 			return
 		}
@@ -154,6 +160,7 @@ func (w *ProcWatcher) Tick() []Event {
 		evs = append(evs, Event{Kind: kind, User: args["user"], Detail: p.Exe, Time: now, Args: args})
 	}
 	for _, p := range procs {
+		alive[procKey(p)] = true
 		if reason := SuspiciousExec(p); reason != "" {
 			report(p, reason, ProcSuspicious, nil)
 		}
@@ -161,9 +168,10 @@ func (w *ProcWatcher) Tick() []Event {
 	for _, p := range SuspiciousLineage(procs) {
 		report(p, ReasonLineage, ProcLineage, map[string]string{"parent": ParentComm(procs, p), "ppid": strconv.Itoa(p.PPID)})
 	}
+	w.minerRule(procs, now, report)
 	changed := len(evs) > 0
 	for key := range w.st.Reported { // forget processes that are gone
-		if !alive[key] {
+		if i := strings.LastIndexByte(key, ':'); i < 0 || !alive[key[:i]] {
 			delete(w.st.Reported, key)
 			changed = true
 		}
@@ -172,4 +180,60 @@ func (w *ProcWatcher) Tick() []Event {
 		_ = saveSide(w.StateDir, procStateFile, w.st)
 	}
 	return evs
+}
+
+// minerRule samples CPU per process and reports sustained burners that also
+// carry a miner signal. Connections are read only when something is hot.
+func (w *ProcWatcher) minerRule(procs []Process, now time.Time, report func(Process, string, Kind, map[string]string)) {
+	limit := float64(w.T.MinerCPUPercent)
+	if limit <= 0 {
+		limit = float64(config.ThresholdsFor(config.Normal).MinerCPUPercent)
+	}
+	if w.hot == nil {
+		w.hot = map[string]int{}
+	}
+	wall := now.Sub(w.prevAt)
+	cur := make(map[string]Process, len(procs))
+	var hot []Process
+	cpu := map[string]float64{}
+	for _, p := range procs {
+		key := procKey(p)
+		cur[key] = p
+		prev, ok := w.prev[key]
+		if !ok {
+			continue
+		}
+		pct := CPUPercent(prev, p, wall)
+		if pct < limit {
+			delete(w.hot, key)
+			continue
+		}
+		w.hot[key]++
+		cpu[key] = pct
+		if w.hot[key] >= minerHotSamples {
+			hot = append(hot, p)
+		}
+	}
+	for key := range w.hot {
+		if _, alive := cur[key]; !alive {
+			delete(w.hot, key)
+		}
+	}
+	w.prev, w.prevAt = cur, now
+	if len(hot) == 0 {
+		return
+	}
+	pools := map[int]string{}
+	if conns, err := ReadConns(w.Root); err == nil {
+		pools = poolConnsByPID(conns, SocketOwners(w.Root))
+	}
+	for _, p := range hot {
+		signal := MinerSignal(p, pools[p.PID])
+		if signal == "" {
+			continue
+		}
+		report(p, ReasonMiner, MinerSuspected, map[string]string{
+			"cpu": cpuString(cpu[procKey(p)]), "signal": signal, "dest": pools[p.PID],
+		})
+	}
 }

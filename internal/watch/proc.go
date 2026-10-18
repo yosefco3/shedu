@@ -24,6 +24,7 @@ type Process struct {
 	Cmdline    []string // NUL-separated argv
 	Comm       string   // short name from comm
 	StartTicks uint64   // field 22 of stat: clock ticks since boot
+	CPUTicks   uint64   // utime+stime (fields 14+15): CPU used so far, in clock ticks
 }
 
 // linkReader is implemented by the /proc roots we use. Go 1.22 has no
@@ -72,7 +73,7 @@ func ReadProcess(root fs.FS, pid int) (Process, error) {
 	return p, nil
 }
 
-// parseStat reads ppid (field 4) and starttime (field 22). comm (field 2)
+// parseStat reads ppid (field 4), utime+stime (14, 15) and starttime (22). comm (field 2)
 // may contain spaces and parentheses, so fields are counted after the last ')'.
 func parseStat(b []byte, p *Process) error {
 	i := bytes.LastIndexByte(b, ')')
@@ -91,7 +92,12 @@ func parseStat(b []byte, p *Process) error {
 	if err != nil {
 		return fmt.Errorf("stat starttime: %w", err)
 	}
-	p.PPID, p.StartTicks = ppid, start
+	ut, err1 := strconv.ParseUint(f[11], 10, 64)
+	stime, err2 := strconv.ParseUint(f[12], 10, 64)
+	if err1 != nil || err2 != nil {
+		return errors.New("stat: bad utime/stime")
+	}
+	p.PPID, p.StartTicks, p.CPUTicks = ppid, start, ut+stime
 	return nil
 }
 

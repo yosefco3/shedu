@@ -14,11 +14,11 @@ func TestInventoryFixture(t *testing.T) {
 	}
 	want := []Process{
 		{PID: 1, PPID: 0, UID: 0, Exe: "/usr/lib/systemd/systemd", Cwd: "/",
-			Cmdline: []string{"/sbin/init", "splash"}, Comm: "systemd", StartTicks: 5},
+			Cmdline: []string{"/sbin/init", "splash"}, Comm: "systemd", StartTicks: 5, CPUTicks: 3},
 		{PID: 4242, PPID: 1, UID: 1000, Exe: "/tmp/y", ExeDeleted: true, Cwd: "/home/yosef",
-			Cmdline: []string{"/tmp/y", "600"}, Comm: "evil) (x", StartTicks: 98765},
+			Cmdline: []string{"/tmp/y", "600"}, Comm: "evil) (x", StartTicks: 98765, CPUTicks: 3},
 		{PID: 4300, PPID: 4242, UID: 33, Exe: "/tmp/x",
-			Cmdline: []string{"/tmp/x", "600"}, Comm: "x", StartTicks: 123456},
+			Cmdline: []string{"/tmp/x", "600"}, Comm: "x", StartTicks: 123456, CPUTicks: 3},
 	}
 	// 5000 has no stat (exited mid-scan) and "sys" is not a pid: both skipped.
 	if !reflect.DeepEqual(ps, want) {
