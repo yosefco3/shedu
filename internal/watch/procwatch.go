@@ -17,6 +17,7 @@ const (
 	ReasonDeletedExec = "deleted_exec"
 	ReasonLineage     = "lineage"
 	ReasonMiner       = "miner"
+	ReasonPreload     = "ld_preload"
 )
 
 // tmpDirs are world-writable places a dropper writes to and runs from.
@@ -114,7 +115,8 @@ type ProcWatcher struct {
 	st     *procState
 	prev   map[string]Process // last sample, for CPU deltas
 	prevAt time.Time
-	hot    map[string]int // consecutive samples above the miner CPU threshold
+	hot    map[string]int  // consecutive samples above the miner CPU threshold
+	envOK  map[string]bool // process instances whose environment was already read
 }
 
 // NewProcWatcher returns the production watcher.
@@ -168,6 +170,7 @@ func (w *ProcWatcher) Tick() []Event {
 	for _, p := range SuspiciousLineage(procs) {
 		report(p, ReasonLineage, ProcLineage, map[string]string{"parent": ParentComm(procs, p), "ppid": strconv.Itoa(p.PPID)})
 	}
+	w.preloadRule(procs, alive, report)
 	w.minerRule(procs, now, report)
 	changed := len(evs) > 0
 	for key := range w.st.Reported { // forget processes that are gone
@@ -235,5 +238,31 @@ func (w *ProcWatcher) minerRule(procs []Process, now time.Time, report func(Proc
 		report(p, ReasonMiner, MinerSuspected, map[string]string{
 			"cpu": cpuString(cpu[procKey(p)]), "signal": signal, "dest": pools[p.PID],
 		})
+	}
+}
+
+// preloadRule reads the environment of each new process once and reports an
+// LD_PRELOAD from outside the system folders.
+func (w *ProcWatcher) preloadRule(procs []Process, alive map[string]bool, report func(Process, string, Kind, map[string]string)) {
+	if w.envOK == nil {
+		w.envOK = map[string]bool{}
+	}
+	var fresh []Process
+	for _, p := range procs {
+		if !w.envOK[procKey(p)] {
+			w.envOK[procKey(p)] = true
+			fresh = append(fresh, p)
+		}
+	}
+	for key := range w.envOK {
+		if !alive[key] {
+			delete(w.envOK, key)
+		}
+	}
+	found := PreloadedProcs(w.Root, fresh)
+	for _, p := range fresh {
+		if v, ok := found[p.PID]; ok {
+			report(p, ReasonPreload, PreloadChanged, map[string]string{"source": "env", "value": v})
+		}
 	}
 }

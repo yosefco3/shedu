@@ -28,6 +28,7 @@ func Default() []Check {
 		NewFirewall(),
 		NewAccounts(),
 		NewProcesses(),
+		NewPreload(),
 	}
 }
 

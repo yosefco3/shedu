@@ -121,6 +121,12 @@ func (r *Rules) Feed(ev Event, st *State) (Alert, bool) {
 		pid := ev.Args["pid"]
 		return r.emit(st, now, Alert{ID: "alert.miner", Severity: finding.High, Key: "miner:" + pid, Args: ev.Args,
 			Fix: "top -b -n1 | head -15; sudo ls -l /proc/" + pid + "/exe && sudo kill " + pid})
+	case PreloadChanged:
+		if ev.Args["source"] == "file" {
+			return r.direct(now, Alert{ID: "alert.preload_file", Severity: finding.Critical, Args: ev.Args, Fix: PreloadFix})
+		}
+		return r.emit(st, now, Alert{ID: "alert.preload_env", Severity: finding.High, Key: "preload:" + ev.Args["pid"], Args: ev.Args,
+			Fix: PreloadEnvFix(ev.Args["pid"])})
 	case PersistenceNew:
 		sev := finding.Medium
 		if ev.Args["user_level"] != "" {
@@ -241,4 +247,9 @@ func ProcFix(reason, pid string) string {
 		return "sudo cp /proc/" + pid + "/exe /root/suspect-" + pid + ".bin && sudo kill " + pid
 	}
 	return "sudo ls -l /proc/" + pid + "/exe /proc/" + pid + "/cwd && sudo kill " + pid
+}
+
+// PreloadEnvFix shows the injected value and the library behind it.
+func PreloadEnvFix(pid string) string {
+	return "sudo tr '\\0' '\\n' < /proc/" + pid + "/environ | grep LD_PRELOAD"
 }
