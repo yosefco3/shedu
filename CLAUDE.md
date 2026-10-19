@@ -13,6 +13,9 @@ dev-kit workflow.
 - One-shot audit: `sudo ./bin/shedu check` · daemon: `sudo ./bin/shedu run`
 - Local Telegram dev setup (no sudo): `scripts/dev_telegram.sh`
 - Close a dev-kit step: `private/scripts/step_done.sh <n> "<commit message>"`
+- Pre-push secret scan, once per clone (installs `.git/hooks/pre-push` here and in
+  `private/`): `scripts/install_hooks.sh` · test: `scripts/secret_scan_test.sh` ·
+  rules and opt-outs: `scripts/secret_scan.sh --help`
 
 ## Rules of this codebase
 - Standard library only unless a spec step explicitly approves a dependency.
