@@ -23,7 +23,7 @@ const (
 type Message struct {
 	UID    string // unique per message, for idempotent delivery
 	Kind   string
-	Text   string // Telegram-HTML safe (see finding.Telegram)
+	Text   string // Telegram-HTML safe (see finding.Telegram); "" = cloud-only, text channels skip it
 	Alert  *cloudapi.Event
 	Report *cloudapi.Report
 }
@@ -53,6 +53,9 @@ func (m Multi) Send(ctx context.Context, msg Message) error {
 type Stdout struct{ W io.Writer }
 
 func (s Stdout) Send(_ context.Context, m Message) error {
+	if m.Text == "" {
+		return nil
+	}
 	_, err := fmt.Fprintln(s.W, StripHTML(m.Text))
 	return err
 }

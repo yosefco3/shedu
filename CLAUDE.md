@@ -23,5 +23,5 @@ dev-kit workflow.
   inside the pure function, so everything is testable with fixtures.
 - Every finding carries a plain-language explanation and a copy-pasteable fix command.
 - Report-only: the agent never modifies the host. It writes only under `/var/lib/shedu`
-  (state) and `/etc/shedu` (config, by install.sh).
+  (state) and `/etc/shedu` (config, by install.sh and `shedu enroll`).
 - Terminal output is English; Hebrew only on Telegram.

@@ -7,6 +7,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,7 +19,13 @@ import (
 	"github.com/yosefco3/shedu/internal/i18n"
 	"github.com/yosefco3/shedu/internal/notify"
 	"github.com/yosefco3/shedu/internal/watch"
+	"github.com/yosefco3/shedu/pkg/cloudapi"
 )
+
+// Heartbeater is the part of cloud.Client the daemon calls directly.
+type Heartbeater interface {
+	Heartbeat(ctx context.Context, hb cloudapi.Heartbeat) (cloudapi.HeartbeatResponse, error)
+}
 
 // Daemon wires the pieces together. Every field is replaceable for tests.
 type Daemon struct {
@@ -30,6 +40,20 @@ type Daemon struct {
 	RunCheck func(ctx context.Context) finding.Report
 	Log      *log.Logger
 	Version  string // agent version, carried in cloud reports
+
+	// Cloud is set when the agent is enrolled. The daemon then sends a heartbeat every
+	// HeartbeatEvery (default 5m) and a cloud-only report at start-up. Alerts reach the
+	// cloud through Notifier (notify.Cloud), not through this field.
+	Cloud          Heartbeater
+	HeartbeatEvery time.Duration
+	Addrs          func() []string // non-loopback addresses; default from net.InterfaceAddrs
+	Uptime         func() int64    // host uptime in seconds; default /proc/uptime
+
+	started time.Time
+	latest  struct {
+		sync.Mutex
+		version string
+	}
 
 	// Backoff bounds for restarting a source that ended (journalctl died, file vanished).
 	MinBackoff, MaxBackoff time.Duration
@@ -80,6 +104,16 @@ func (d *Daemon) Run(ctx context.Context) error {
 	for _, w := range d.Watchers {
 		wg.Add(1)
 		go func(w watch.Runner) { defer wg.Done(); w.Run(ctx, d.State, events, saver.request) }(w)
+	}
+
+	d.started = d.Clock()
+	if d.Cloud != nil {
+		wg.Add(1)
+		go func() { defer wg.Done(); d.heartbeats(ctx) }()
+		if d.RunCheck != nil {
+			wg.Add(1)
+			go func() { defer wg.Done(); d.startupReport(ctx) }()
+		}
 	}
 
 	if d.State.Fresh() {
@@ -187,7 +221,142 @@ func (d *Daemon) sendDaily(ctx context.Context) {
 	if d.Cfg.Hostname != "" {
 		report.Host = d.Cfg.Hostname
 	}
-	d.send(ctx, ReportMessage(report, d.Cfg.Lang, i18n.T(d.Cfg.Lang, "daily", map[string]string{"host": report.Host}), d.Version))
+	m := ReportMessage(report, d.Cfg.Lang, i18n.T(d.Cfg.Lang, "daily", map[string]string{"host": report.Host}), d.Version)
+	if v := d.latestVersion(); v != "" && d.Version != "" && v != d.Version {
+		m.Text += "\n\n" + notify.Escape(i18n.T(d.Cfg.Lang, "update", map[string]string{"latest": v, "current": d.Version}))
+	}
+	d.send(ctx, m)
+}
+
+// startupReport runs the checks once and queues the result for the cloud only (no text,
+// so Telegram stays quiet on every restart).
+func (d *Daemon) startupReport(ctx context.Context) {
+	cctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	report := d.RunCheck(cctx)
+	if ctx.Err() != nil {
+		return
+	}
+	if d.Cfg.Hostname != "" {
+		report.Host = d.Cfg.Hostname
+	}
+	m := ReportMessage(report, d.Cfg.Lang, "", d.Version)
+	m.Text = ""
+	d.send(ctx, m)
+}
+
+// heartbeats tells the cloud the agent is alive: one right away, then every
+// HeartbeatEvery. A failing cloud costs one log line per 30 minutes, not one per beat.
+func (d *Daemon) heartbeats(ctx context.Context) {
+	every := d.HeartbeatEvery
+	if every <= 0 {
+		every = 5 * time.Minute
+	}
+	t := time.NewTicker(every)
+	defer t.Stop()
+	var lastErrLog time.Time
+	for {
+		hctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		resp, err := d.Cloud.Heartbeat(hctx, d.heartbeat())
+		cancel()
+		switch {
+		case err != nil && ctx.Err() == nil:
+			if now := d.Clock(); now.Sub(lastErrLog) >= 30*time.Minute {
+				d.Log.Printf("cloud: heartbeat failed: %v (next report of this in 30m)", err)
+				lastErrLog = now
+			}
+		case err == nil:
+			lastErrLog = time.Time{}
+			d.noteLatest(resp.LatestVersion)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+func (d *Daemon) heartbeat() cloudapi.Heartbeat {
+	names := []string{}
+	if d.Auth != nil {
+		names = append(names, "auth")
+	}
+	if d.Accounts != nil {
+		names = append(names, "accounts")
+	}
+	for _, w := range d.Watchers {
+		names = append(names, watcherName(w))
+	}
+	addrs := d.Addrs
+	if addrs == nil {
+		addrs = interfaceAddrs
+	}
+	uptime := d.Uptime
+	if uptime == nil {
+		uptime = func() int64 { return hostUptime(d.Clock().Sub(d.started)) }
+	}
+	return cloudapi.Heartbeat{
+		Time: d.Clock().UTC(), AgentVersion: d.Version, UptimeSeconds: uptime(), Watchers: names,
+		DirectTelegram: d.Cfg.TelegramEnabled(), Addrs: addrs(), Lang: string(d.Cfg.Lang),
+	}
+}
+
+// noteLatest records the newest release the cloud knows of. It is display-only: one log
+// line when it changes, and a line in the daily report. The agent never upgrades itself.
+func (d *Daemon) noteLatest(v string) {
+	d.latest.Lock()
+	changed := v != d.latest.version
+	d.latest.version = v
+	d.latest.Unlock()
+	if changed && v != "" && d.Version != "" && v != d.Version {
+		d.Log.Printf("cloud: a newer shedu is available: %s (running %s)", v, d.Version)
+	}
+}
+
+func (d *Daemon) latestVersion() string {
+	d.latest.Lock()
+	defer d.latest.Unlock()
+	return d.latest.version
+}
+
+// watcherName turns *watch.ProcWatcher into "ProcWatcher".
+func watcherName(w watch.Runner) string {
+	n := fmt.Sprintf("%T", w)
+	if i := strings.LastIndex(n, "."); i >= 0 {
+		n = n[i+1:]
+	}
+	return strings.TrimPrefix(n, "*")
+}
+
+// interfaceAddrs lists the non-loopback, non-link-local interface addresses.
+func interfaceAddrs() []string {
+	as, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	out := []string{}
+	for _, a := range as {
+		ipn, ok := a.(*net.IPNet)
+		if !ok || ipn.IP.IsLoopback() || ipn.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		out = append(out, ipn.IP.String())
+	}
+	return out
+}
+
+// hostUptime reads /proc/uptime; fallback is how long the daemon has run.
+func hostUptime(fallback time.Duration) int64 {
+	b, err := os.ReadFile("/proc/uptime")
+	if err == nil {
+		if f := strings.Fields(string(b)); len(f) > 0 {
+			if v, err := strconv.ParseFloat(f[0], 64); err == nil {
+				return int64(v)
+			}
+		}
+	}
+	return int64(fallback.Seconds())
 }
 
 // NextDaily returns the next occurrence of "HH:MM" strictly after now, in now's location.

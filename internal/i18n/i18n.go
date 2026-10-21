@@ -103,6 +103,7 @@ var UI = map[Lang]map[string]string{
 		"nothing":   "לא נמצא שום דבר שדורש טיפול.",
 		"connected": "🛡 Shedu מחובר לשרת {{.host}}.",
 		"daily":     "📋 הדוח היומי של {{.host}}",
+		"update":    "⬆ יש גרסה חדשה של Shedu: {{.latest}} (מותקנת {{.current}}). לעדכון: curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/install.sh | sudo bash -s -- --upgrade",
 	},
 	En: {
 		"score":     "Health score",
@@ -112,6 +113,7 @@ var UI = map[Lang]map[string]string{
 		"nothing":   "Nothing needs your attention.",
 		"connected": "🛡 Shedu is now watching {{.host}}.",
 		"daily":     "📋 Daily report for {{.host}}",
+		"update":    "⬆ A newer Shedu is available: {{.latest}} (installed {{.current}}). To upgrade: curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/install.sh | sudo bash -s -- --upgrade",
 	},
 }
 

@@ -25,6 +25,9 @@ type Telegram struct {
 const maxMessageRunes = 4000
 
 func (t *Telegram) Send(ctx context.Context, m Message) error {
+	if m.Text == "" { // cloud-only message
+		return nil
+	}
 	for _, part := range Split(m.Text, maxMessageRunes) {
 		if err := t.sendOne(ctx, part); err != nil {
 			return err

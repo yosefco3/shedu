@@ -2,7 +2,10 @@
 # Shedu installer — one command, zero configuration.
 #   curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/install.sh | sudo bash
 # Options (all optional):
-#   --token TOKEN      Telegram bot token (else asked)
+#   --cloud TOKEN      connect to the Shedu cloud with a one-time token from the dashboard;
+#                      alerts then come from the cloud, so Telegram is not asked for
+#   --url URL          cloud API URL for --cloud (default https://api.getshedu.com)
+#   --token TOKEN      Telegram bot token (else asked, unless --cloud)
 #   --chat-id ID       Telegram chat id (else asked / auto-detected)
 #   --lang he|en       language of the Telegram messages (default he); terminal output is always English
 #   --binary PATH      install this binary instead of downloading a release (dev)
@@ -17,10 +20,12 @@ CONF=$CONF_DIR/guard.conf
 STATE_DIR=/var/lib/shedu
 UNIT=/etc/systemd/system/shedu.service
 
-TOKEN=""; CHAT_ID=""; LANG_OPT="he"; BINARY=""; UPGRADE=0; YES=0
+TOKEN=""; CHAT_ID=""; LANG_OPT="he"; BINARY=""; UPGRADE=0; YES=0; CLOUD_TOKEN=""; CLOUD_URL=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --token) TOKEN="$2"; shift 2;;
+    --cloud) CLOUD_TOKEN="$2"; shift 2;;
+    --url) CLOUD_URL="$2"; shift 2;;
     --chat-id) CHAT_ID="$2"; shift 2;;
     --lang) LANG_OPT="$2"; shift 2;;
     --binary) BINARY="$2"; shift 2;;
@@ -111,7 +116,7 @@ chmod 0700 "$STATE_DIR"
 
 # --- telegram -------------------------------------------------------------
 if [ ! -f "$CONF" ]; then
-  if [ -z "$TOKEN" ] && [ "$YES" -eq 0 ] && [ -t 0 ]; then
+  if [ -z "$TOKEN" ] && [ -z "$CLOUD_TOKEN" ] && [ "$YES" -eq 0 ] && [ -t 0 ]; then
     say "" ""
     say "Shedu שולח התראות לטלגרם. כדי לחבר אותו:" "Shedu sends alerts to Telegram. To connect it:"
     say "  1. פתח בטלגרם את @BotFather, שלח /newbot ועקוב אחרי ההוראות." "  1. Open @BotFather in Telegram, send /newbot and follow the steps."
@@ -161,10 +166,18 @@ TUNING
       -d chat_id="$CHAT_ID" -d text="✔ Shedu: $(hostname)" >/dev/null \
       && say "✔ הודעת בדיקה נשלחה לטלגרם." "✔ Test message sent to Telegram." \
       || say "⚠ שליחת הבדיקה לטלגרם נכשלה. בדוק את ה-token ואת ה-chat id ב-$CONF" "⚠ Telegram test failed. Check the token and chat id in $CONF"
-  else
+  elif [ -z "$CLOUD_TOKEN" ]; then
     say "ℹ טלגרם לא הוגדר. אפשר להוסיף TELEGRAM_TOKEN ו-TELEGRAM_CHAT_ID ל-$CONF בכל רגע." \
         "ℹ Telegram not configured. Add TELEGRAM_TOKEN and TELEGRAM_CHAT_ID to $CONF any time."
   fi
+fi
+
+# --- cloud (before the service starts, so its first run already reports) ----
+if [ -n "$CLOUD_TOKEN" ]; then
+  ENROLL_ARGS=(enroll "$CLOUD_TOKEN" --config "$CONF")
+  [ -n "$CLOUD_URL" ] && ENROLL_ARGS+=(--url "$CLOUD_URL")
+  "$BIN" "${ENROLL_ARGS[@]}" \
+    || die "could not connect to the Shedu cloud (token expired or already used? create a new one in the dashboard). Nothing was started; run this command again with a new token."
 fi
 
 # --- service --------------------------------------------------------------
@@ -172,6 +185,8 @@ if [ "$HAS_SYSTEMD" -eq 1 ]; then
   write_unit
   systemctl daemon-reload
   systemctl enable --now shedu >/dev/null
+  # a reinstall onto a running service: pick up the new CLOUD_KEY
+  [ -n "$CLOUD_TOKEN" ] && systemctl restart shedu
 else
   say "⚠ אין systemd: השירות לא הותקן. הרץ ידנית: sudo shedu run" "⚠ No systemd: service not installed. Run manually: sudo shedu run"
 fi
