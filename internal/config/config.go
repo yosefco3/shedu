@@ -25,6 +25,8 @@ type Config struct {
 	BruteForceN    int       // BRUTE_FORCE_THRESHOLD, default 5
 	StateDir       string    // STATE_DIR, default /var/lib/shedu
 	Hostname       string    // HOSTNAME override; default os.Hostname()
+	CloudURL       string    // CLOUD_URL, default https://api.getshedu.com
+	CloudKey       string    // CLOUD_KEY, written by `shedu enroll`; empty = cloud off
 
 	Sensitivity Sensitivity // SENSITIVITY low|normal|high, default normal
 	Thresholds  Thresholds  // resolved from Sensitivity, then per-key overrides
@@ -35,6 +37,7 @@ type Config struct {
 func Defaults() Config {
 	host, _ := os.Hostname()
 	return Config{Lang: i18n.He, DailyReportAt: "08:00", BruteForceN: 5, StateDir: "/var/lib/shedu", Hostname: host,
+		CloudURL:    DefaultCloudURL,
 		Sensitivity: Normal, Thresholds: ThresholdsFor(Normal)}
 }
 
@@ -82,6 +85,12 @@ func Parse(r io.Reader) (Config, error) {
 			c.TelegramChatID = val
 		case "LANG":
 			c.Lang = i18n.Parse(val)
+		case "CLOUD_URL":
+			if val != "" {
+				c.CloudURL = strings.TrimRight(val, "/")
+			}
+		case "CLOUD_KEY":
+			c.CloudKey = val
 		case "DAILY_REPORT_AT":
 			c.DailyReportAt = val
 		case "BRUTE_FORCE_THRESHOLD":
@@ -120,6 +129,13 @@ func Parse(r io.Reader) (Config, error) {
 	}
 	return c, nil
 }
+
+// DefaultCloudURL is the Shedu cloud API used when CLOUD_URL is not set.
+const DefaultCloudURL = "https://api.getshedu.com"
+
+// CloudEnabled reports whether the agent is enrolled (CLOUD_KEY set). Without it the
+// agent never contacts the cloud.
+func (c Config) CloudEnabled() bool { return c.CloudKey != "" }
 
 // TelegramEnabled reports whether both Telegram settings are present.
 func (c Config) TelegramEnabled() bool { return c.TelegramToken != "" && c.TelegramChatID != "" }

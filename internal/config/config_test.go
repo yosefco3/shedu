@@ -48,3 +48,23 @@ func TestParseErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestCloudKeys(t *testing.T) {
+	c, err := Parse(strings.NewReader("CLOUD_KEY=\"shk_abc_fakesecret\"\n")) // secret-scan: allow
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.CloudEnabled() || c.CloudURL != "https://api.getshedu.com" {
+		t.Errorf("key without URL must use the default: %q %v", c.CloudURL, c.CloudEnabled())
+	}
+	c, err = Parse(strings.NewReader("CLOUD_URL=http://localhost:8080/\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.CloudEnabled() || c.CloudURL != "http://localhost:8080" {
+		t.Errorf("URL alone must not enable the cloud: %q %v", c.CloudURL, c.CloudEnabled())
+	}
+	if Defaults().CloudEnabled() {
+		t.Error("cloud must be off by default")
+	}
+}

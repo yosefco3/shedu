@@ -24,8 +24,8 @@ type Telegram struct {
 // the split may leave open.
 const maxMessageRunes = 4000
 
-func (t *Telegram) Send(ctx context.Context, text string) error {
-	for _, part := range Split(text, maxMessageRunes) {
+func (t *Telegram) Send(ctx context.Context, m Message) error {
+	for _, part := range Split(m.Text, maxMessageRunes) {
 		if err := t.sendOne(ctx, part); err != nil {
 			return err
 		}

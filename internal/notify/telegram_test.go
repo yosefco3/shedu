@@ -21,7 +21,7 @@ func TestTelegramSend(t *testing.T) {
 	}))
 	defer srv.Close()
 	tg := &Telegram{Token: "123:abc", ChatID: "42", BaseURL: srv.URL}
-	if err := tg.Send(context.Background(), "<b>hi</b>"); err != nil {
+	if err := tg.Send(context.Background(), TextMessage("<b>hi</b>")); err != nil {
 		t.Fatal(err)
 	}
 	if gotPath != "/bot123:abc/sendMessage" {
@@ -38,7 +38,7 @@ func TestTelegramError(t *testing.T) {
 		w.Write([]byte(`{"ok":false,"error_code":401,"description":"Unauthorized"}`))
 	}))
 	defer srv.Close()
-	err := (&Telegram{Token: "bad", ChatID: "1", BaseURL: srv.URL}).Send(context.Background(), "x")
+	err := (&Telegram{Token: "bad", ChatID: "1", BaseURL: srv.URL}).Send(context.Background(), TextMessage("x"))
 	if err == nil || !strings.Contains(err.Error(), "401") || !strings.Contains(err.Error(), "Unauthorized") {
 		t.Errorf("err = %v", err)
 	}
@@ -55,7 +55,7 @@ func TestTelegramSplitsLongMessages(t *testing.T) {
 	defer srv.Close()
 	line := strings.Repeat("א", 99) + "\n" // 100 runes per line
 	msg := strings.Repeat(line, 90)        // 9000 runes
-	if err := (&Telegram{Token: "t", ChatID: "c", BaseURL: srv.URL}).Send(context.Background(), msg); err != nil {
+	if err := (&Telegram{Token: "t", ChatID: "c", BaseURL: srv.URL}).Send(context.Background(), TextMessage(msg)); err != nil {
 		t.Fatal(err)
 	}
 	if len(texts) != 3 {
@@ -80,15 +80,18 @@ func TestSplitHugeLine(t *testing.T) {
 
 type failing struct{}
 
-func (failing) Send(context.Context, string) error { return errors.New("down") }
+func (failing) Send(context.Context, Message) error { return errors.New("down") }
 
 type recorder struct{ got []string }
 
-func (r *recorder) Send(_ context.Context, s string) error { r.got = append(r.got, s); return nil }
+func (r *recorder) Send(_ context.Context, m Message) error {
+	r.got = append(r.got, m.Text)
+	return nil
+}
 
 func TestMulti(t *testing.T) {
 	rec := &recorder{}
-	err := Multi{failing{}, rec}.Send(context.Background(), "msg")
+	err := Multi{failing{}, rec}.Send(context.Background(), TextMessage("msg"))
 	if err == nil || !strings.Contains(err.Error(), "down") {
 		t.Errorf("err = %v", err)
 	}
@@ -99,7 +102,7 @@ func TestMulti(t *testing.T) {
 
 func TestStdoutStripsHTML(t *testing.T) {
 	var sb strings.Builder
-	_ = Stdout{W: &sb}.Send(context.Background(), "<b>a &lt;b&gt;</b> <code>c</code>")
+	_ = Stdout{W: &sb}.Send(context.Background(), TextMessage("<b>a &lt;b&gt;</b> <code>c</code>"))
 	if sb.String() != "a <b> c\n" {
 		t.Errorf("got %q", sb.String())
 	}
@@ -107,7 +110,7 @@ func TestStdoutStripsHTML(t *testing.T) {
 
 func TestTelegramErrorHidesToken(t *testing.T) {
 	tg := &Telegram{Token: "123456:SECRET-TOKEN", ChatID: "1", BaseURL: "http://127.0.0.1:1"} // nothing listens
-	err := tg.Send(context.Background(), "hi")
+	err := tg.Send(context.Background(), TextMessage("hi"))
 	if err == nil {
 		t.Fatal("want a connection error")
 	}

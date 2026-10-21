@@ -55,6 +55,9 @@ func Run(ctx context.Context, host string, now time.Time, checks []Check) findin
 			continue
 		}
 		r.Findings = append(r.Findings, fs...)
+		if ls, ok := c.(interface{ Listeners() []finding.Listener }); ok {
+			r.Listeners = append(r.Listeners, ls.Listeners()...)
+		}
 	}
 	return r
 }

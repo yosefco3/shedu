@@ -89,7 +89,7 @@ func run(args []string) int {
 		fmt.Print(finding.Text(report, termLang))
 		if cfg.TelegramEnabled() && !*noTelegram {
 			tg := &notify.Telegram{Token: cfg.TelegramToken, ChatID: cfg.TelegramChatID}
-			if err := tg.Send(ctx, finding.Telegram(report, msgLang, 5)); err != nil {
+			if err := tg.Send(ctx, notify.TextMessage(finding.Telegram(report, msgLang, 5))); err != nil {
 				fmt.Fprintln(os.Stderr, "shedu:", err)
 				return 1
 			}
@@ -149,6 +149,7 @@ func runDaemon(cfgPath string) int {
 		State:    st,
 		RunCheck: checks.RunAll,
 		Log:      logger,
+		Version:  version,
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

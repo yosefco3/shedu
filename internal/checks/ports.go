@@ -34,6 +34,35 @@ type Ports struct {
 	Resolve func(inode uint64) (pid int, comm string) // socket inode → owning process
 	HasUFW  bool                                      // decides the fix command
 	LANOnly func() bool                               // host is reachable only from its local network
+
+	public []finding.Listener // filled by Run: what ports.summary lists, for the cloud report
+}
+
+// Listeners returns the ports reachable from outside seen by the last Run.
+func (p *Ports) Listeners() []finding.Listener { return p.public }
+
+// PublicListeners keeps the listeners reachable from outside, once per proto/address/port.
+func PublicListeners(ls []Listener) []finding.Listener {
+	seen := map[string]bool{}
+	var out []finding.Listener
+	for _, l := range ls {
+		if !IsPublic(l.Addr) {
+			continue
+		}
+		k := l.Proto + "|" + l.Addr.String() + "|" + strconv.Itoa(l.Port)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, finding.Listener{Port: l.Port, Proto: l.Proto, Bind: l.Addr.String(), Process: l.Process})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Port != out[j].Port {
+			return out[i].Port < out[j].Port
+		}
+		return out[i].Proto+out[i].Bind < out[j].Proto+out[j].Bind
+	})
+	return out
 }
 
 // NewPorts returns the production collector.
@@ -94,6 +123,7 @@ func (p *Ports) Run(ctx context.Context) ([]finding.Finding, error) {
 			all[i].PID, all[i].Process = p.Resolve(all[i].Inode)
 		}
 	}
+	p.public = PublicListeners(all)
 	return p.analyse(all), nil
 }
 

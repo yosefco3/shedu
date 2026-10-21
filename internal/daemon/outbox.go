@@ -15,7 +15,7 @@ import (
 type outbox struct {
 	n        notify.Notifier
 	log      *log.Logger
-	q        chan string
+	q        chan notify.Message
 	min, max time.Duration // retry backoff bounds
 }
 
@@ -29,13 +29,13 @@ func newOutbox(n notify.Notifier, l *log.Logger, min, max time.Duration) *outbox
 	if max < min {
 		max = 5 * time.Minute
 	}
-	return &outbox{n: n, log: l, q: make(chan string, outboxCap), min: min, max: max}
+	return &outbox{n: n, log: l, q: make(chan notify.Message, outboxCap), min: min, max: max}
 }
 
 // put queues a message without blocking.
-func (o *outbox) put(text string) {
+func (o *outbox) put(m notify.Message) {
 	select {
-	case o.q <- text:
+	case o.q <- m:
 	default:
 		o.log.Printf("notify: outbox full, message dropped")
 	}
@@ -43,8 +43,8 @@ func (o *outbox) put(text string) {
 
 // run sends until ctx ends.
 func (o *outbox) run(ctx context.Context) {
-	var pending []string
-	add := func(m string) {
+	var pending []notify.Message
+	add := func(m notify.Message) {
 		pending = append(pending, m)
 		if len(pending) > outboxCap {
 			pending = pending[1:]

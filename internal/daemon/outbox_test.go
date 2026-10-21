@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/yosefco3/shedu/internal/notify"
 )
 
 // flaky fails the first n sends, like a hotspot that drops for a while.
@@ -19,7 +21,8 @@ type flaky struct {
 	got   []string
 }
 
-func (f *flaky) Send(_ context.Context, s string) error {
+func (f *flaky) Send(_ context.Context, m notify.Message) error {
+	s := m.Text
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.tries++
@@ -40,8 +43,8 @@ func TestOutboxRetriesInOrder(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { o.run(ctx); close(done) }()
-	o.put("deleted binary alert")
-	o.put("cron alert")
+	o.put(notify.TextMessage("deleted binary alert"))
+	o.put(notify.TextMessage("cron alert"))
 	waitFor(t, func() bool { n.mu.Lock(); defer n.mu.Unlock(); return len(n.got) == 2 })
 	cancel()
 	<-done
@@ -61,7 +64,7 @@ func TestOutboxStopsOnShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { o.run(ctx); close(done) }()
-	o.put("x")
+	o.put(notify.TextMessage("x"))
 	waitFor(t, func() bool { n.mu.Lock(); defer n.mu.Unlock(); return n.tries == 1 })
 	cancel()
 	select {

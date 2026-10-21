@@ -7,20 +7,42 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/yosefco3/shedu/pkg/cloudapi"
 )
 
-// Notifier sends one message. Text is Telegram-HTML safe (see finding.Telegram).
+// Message kinds.
+const (
+	KindAlert  = "alert"  // Alert is set
+	KindReport = "report" // Report is set
+	KindText   = "text"   // only Text (start-up notice and the like)
+)
+
+// Message is one notification. Text is always set and is what Telegram and stdout show;
+// the structured part is what the cloud receives, so the same alert can go either way.
+type Message struct {
+	UID    string // unique per message, for idempotent delivery
+	Kind   string
+	Text   string // Telegram-HTML safe (see finding.Telegram)
+	Alert  *cloudapi.Event
+	Report *cloudapi.Report
+}
+
+// TextMessage wraps plain Telegram-HTML text.
+func TextMessage(text string) Message { return Message{Kind: KindText, Text: text} }
+
+// Notifier sends one message.
 type Notifier interface {
-	Send(ctx context.Context, text string) error
+	Send(ctx context.Context, m Message) error
 }
 
 // Multi fans out to every notifier and reports all failures together.
 type Multi []Notifier
 
-func (m Multi) Send(ctx context.Context, text string) error {
+func (m Multi) Send(ctx context.Context, msg Message) error {
 	var errs []error
 	for _, n := range m {
-		if err := n.Send(ctx, text); err != nil {
+		if err := n.Send(ctx, msg); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -30,8 +52,8 @@ func (m Multi) Send(ctx context.Context, text string) error {
 // Stdout prints the message (HTML tags stripped) — used by `check` and for debugging.
 type Stdout struct{ W io.Writer }
 
-func (s Stdout) Send(_ context.Context, text string) error {
-	_, err := fmt.Fprintln(s.W, StripHTML(text))
+func (s Stdout) Send(_ context.Context, m Message) error {
+	_, err := fmt.Fprintln(s.W, StripHTML(m.Text))
 	return err
 }
 

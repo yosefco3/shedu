@@ -43,6 +43,17 @@ type Report struct {
 	Host     string    `json:"host"`
 	Time     time.Time `json:"time"`
 	Findings []Finding `json:"findings"`
+	// Listeners are the TCP ports reachable from outside (what ports.summary lists). They
+	// go to the cloud report only; `check --json` keeps its documented shape.
+	Listeners []Listener `json:"-"`
+}
+
+// Listener is one TCP port reachable from outside the host.
+type Listener struct {
+	Port    int
+	Proto   string // tcp | tcp6
+	Bind    string // listening address, e.g. 0.0.0.0
+	Process string // comm, "" if unknown
 }
 
 // penalty is subtracted from 100 per finding; the score never drops below 0.

@@ -29,6 +29,7 @@ type Daemon struct {
 	Clock    func() time.Time
 	RunCheck func(ctx context.Context) finding.Report
 	Log      *log.Logger
+	Version  string // agent version, carried in cloud reports
 
 	// Backoff bounds for restarting a source that ended (journalctl died, file vanished).
 	MinBackoff, MaxBackoff time.Duration
@@ -82,7 +83,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 
 	if d.State.Fresh() {
-		d.send(ctx, i18n.T(d.Cfg.Lang, "connected", map[string]string{"host": d.Cfg.Hostname}))
+		d.send(ctx, notify.TextMessage(i18n.T(d.Cfg.Lang, "connected", map[string]string{"host": d.Cfg.Hostname})))
 	}
 
 	var daily <-chan time.Time
@@ -103,7 +104,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 			return nil
 		case ev := <-events:
 			if alert, ok := d.Rules.Feed(ev, d.State); ok {
-				d.send(ctx, alert.Telegram(d.Cfg.Lang))
+				d.send(ctx, AlertMessage(alert, d.Cfg.Lang))
 			}
 			saver.request()
 		case <-daily:
@@ -155,11 +156,28 @@ func (d *Daemon) pump(ctx context.Context, out chan<- watch.Event) {
 	}
 }
 
-// send queues text for delivery; the outbox retries until it gets through.
-func (d *Daemon) send(_ context.Context, text string) {
+// send queues a message for delivery; the outbox retries until it gets through.
+func (d *Daemon) send(_ context.Context, m notify.Message) {
 	if d.out != nil {
-		d.out.put(text)
+		d.out.put(m)
 	}
+}
+
+// AlertMessage carries an alert both as Telegram text and as a cloud event.
+func AlertMessage(a watch.Alert, lang i18n.Lang) notify.Message {
+	ev := a.Cloud()
+	return notify.Message{UID: ev.UID, Kind: notify.KindAlert, Text: a.Telegram(lang), Alert: &ev}
+}
+
+// ReportMessage carries a check report both as Telegram text (with a heading) and as a
+// cloud report. The UID is derived from host and time, like an alert's.
+func ReportMessage(r finding.Report, lang i18n.Lang, heading, version string) notify.Message {
+	cr := finding.Cloud(r, version)
+	text := finding.Telegram(r, lang, 5)
+	if heading != "" {
+		text = heading + "\n" + text
+	}
+	return notify.Message{UID: "report:" + r.Host + ":" + r.Time.UTC().Format(time.RFC3339Nano), Kind: notify.KindReport, Text: text, Report: &cr}
 }
 
 func (d *Daemon) sendDaily(ctx context.Context) {
@@ -169,7 +187,7 @@ func (d *Daemon) sendDaily(ctx context.Context) {
 	if d.Cfg.Hostname != "" {
 		report.Host = d.Cfg.Hostname
 	}
-	d.send(ctx, i18n.T(d.Cfg.Lang, "daily", map[string]string{"host": report.Host})+"\n"+finding.Telegram(report, d.Cfg.Lang, 5))
+	d.send(ctx, ReportMessage(report, d.Cfg.Lang, i18n.T(d.Cfg.Lang, "daily", map[string]string{"host": report.Host}), d.Version))
 }
 
 // NextDaily returns the next occurrence of "HH:MM" strictly after now, in now's location.

@@ -2,12 +2,14 @@ package checks
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yosefco3/shedu/internal/finding"
 	"github.com/yosefco3/shedu/internal/i18n"
@@ -73,9 +75,25 @@ func testPorts(t *testing.T, ufw bool) *Ports {
 }
 
 func TestPortsRun(t *testing.T) {
-	fs, err := testPorts(t, true).Run(context.Background())
+	p := testPorts(t, true)
+	fs, err := p.Run(context.Background())
 	if err != nil {
 		t.Fatal(err)
+	}
+	var got []string
+	for _, l := range p.Listeners() {
+		got = append(got, fmt.Sprintf("%d/%s %s %s", l.Port, l.Proto, l.Bind, l.Process))
+		if l.Bind == "127.0.0.1" || l.Bind == "::1" {
+			t.Errorf("loopback listener in the public list: %+v", l)
+		}
+	}
+	if len(got) == 0 || !strings.HasPrefix(got[0], "22/") {
+		t.Errorf("public listeners (cloud report): %v", got)
+	}
+	// RunAll-style aggregation carries them into the report
+	r := Run(context.Background(), "h", time.Now(), []Check{p})
+	if len(r.Listeners) != len(got) {
+		t.Errorf("report listeners: %d, want %d", len(r.Listeners), len(got))
 	}
 	var db, dev, summary *finding.Finding
 	for i := range fs {

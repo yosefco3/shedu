@@ -14,6 +14,7 @@ import (
 	"github.com/yosefco3/shedu/internal/config"
 	"github.com/yosefco3/shedu/internal/finding"
 	"github.com/yosefco3/shedu/internal/i18n"
+	"github.com/yosefco3/shedu/internal/notify"
 	"github.com/yosefco3/shedu/internal/watch"
 )
 
@@ -47,12 +48,14 @@ func (f *fakeSource) Events(ctx context.Context) (<-chan watch.Event, error) { r
 type recorder struct {
 	mu   sync.Mutex
 	msgs []string
+	full []notify.Message
 }
 
-func (r *recorder) Send(_ context.Context, s string) error {
+func (r *recorder) Send(_ context.Context, m notify.Message) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.msgs = append(r.msgs, s)
+	r.msgs = append(r.msgs, m.Text)
+	r.full = append(r.full, m)
 	return nil
 }
 
@@ -85,6 +88,16 @@ func TestDaemonPipeline(t *testing.T) {
 	waitFor(t, func() bool { return rec.count() == 2 })
 	if !strings.Contains(rec.msgs[1], "1.2.3.4") || !strings.Contains(rec.msgs[1], "<b>") {
 		t.Errorf("alert = %q", rec.msgs[1])
+	}
+	rec.mu.Lock()
+	m := rec.full[1]
+	rec.mu.Unlock()
+	if m.Kind != notify.KindAlert || m.Alert == nil || m.UID == "" || m.UID != m.Alert.UID ||
+		m.Alert.ID != "alert.bruteforce" || m.Alert.Text["he"].Title == "" || m.Alert.Text["en"].Title == "" {
+		t.Errorf("structured alert = %+v", m)
+	}
+	if rec.full[0].Kind != notify.KindText {
+		t.Errorf("start message kind = %q", rec.full[0].Kind)
 	}
 	src.ch <- watch.Event{Kind: watch.LoginFail, IP: "1.2.3.4", User: "root"}
 	time.Sleep(50 * time.Millisecond)
