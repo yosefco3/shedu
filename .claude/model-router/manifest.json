@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "agents": {
+    "builder.md": "8e0c893a2b4ca5eec93409857d547e234c5e029adb610662d6aba624c5099085",
+    "mechanic.md": "1ae45b4c49d28ba4346d70fa684128eec50348288a7d244f02d687719144e359",
+    "reviewer.md": "0000a5ea1ad316152d6165f02ddab8d9a63b49d0404695ccb8ba6bc17b9dae1f",
+    "scout.md": "f29c2b01d81ef4ae808339de5a150d5538603d54c2b16ed4cf3abdd9053fb24a",
+    "test-writer.md": "c856601275c339e5bd949b8ec2ee18e4516ada0b9ae8725bbd0ecd122d55e9a0"
+  }
+}
