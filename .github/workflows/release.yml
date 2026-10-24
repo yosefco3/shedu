@@ -89,6 +89,9 @@ jobs:
           echo "::warning::This release is published WITHOUT a minisign signature (no MINISIGN_SECRET_KEY secret, or signing failed). Installs with minisign and a baked-in key will refuse it."
       - uses: softprops/action-gh-release@v2
         with:
+          # A tag with a suffix (v0.3.1-rc1) is a pre-release: never "latest", so install.sh and
+          # `shedu upgrade` keep pointing at the last stable version.
+          prerelease: ${{ contains(github.ref_name, '-') }}
           # SHA256SUMS* also picks up SHA256SUMS.minisig when the release was signed.
           files: |
             dist/shedu_linux_amd64
