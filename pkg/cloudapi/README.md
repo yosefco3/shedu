@@ -9,6 +9,7 @@ Without `CLOUD_KEY` in `/etc/shedu/guard.conf` the agent sends nothing at all.
 | `EnrollRequest` | once, `shedu enroll <token>` | `token` (one-time, from the dashboard), `hostname`, `os`, `arch`, `agent_version`: to show the server in the dashboard. |
 | `Report` | at start-up, daily, after `shedu check` | exactly what `shedu check --json` prints (`id`, `severity`, `args`, `fix`, `evidence`), the score, the rendered Hebrew and English texts, and the ports reachable from outside (`port`, `proto`, `bind`, process name). |
 | `Event` | each alert | the same alert that goes to Telegram, with a unique `uid` so a retry is stored once. |
+| (empty `POST /v1/disconnect`) | `shedu enroll --off` | tells the cloud the owner disconnected the server on purpose, so it is shown as "disconnected", not "not reporting"; the cloud revokes the key. |
 | `Heartbeat` | every 5 minutes | version, uptime, which watchers run, whether direct Telegram is configured, interface addresses, language. Lets the cloud tell you when a server goes silent. |
 
 Never sent: the process list, the connection table, key material, secret values, shell

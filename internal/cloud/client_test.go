@@ -114,3 +114,14 @@ func TestRefusesPlainHTTPOverTheNetwork(t *testing.T) {
 		}
 	}
 }
+
+func TestDisconnect(t *testing.T) {
+	var got []seen
+	srv := server(t, 200, `{}`, &got)
+	if err := (&Client{BaseURL: srv.URL, Key: fakeKey}).Disconnect(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].path != "/v1/disconnect" || got[0].auth != "Bearer "+fakeKey {
+		t.Errorf("request: %+v", got)
+	}
+}

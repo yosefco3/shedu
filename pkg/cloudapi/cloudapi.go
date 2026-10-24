@@ -22,6 +22,10 @@ const (
 	PathReport    = "/v1/report"
 	PathEvents    = "/v1/events"
 	PathHeartbeat = "/v1/heartbeat"
+	// PathDisconnect is sent by `shedu enroll --off` (empty body, with the key, before the
+	// key is removed): the cloud marks the server "disconnected by the admin" and revokes
+	// the key, instead of reporting it as silent.
+	PathDisconnect = "/v1/disconnect"
 )
 
 // Limits the cloud enforces; the agent stays under them.

@@ -51,6 +51,12 @@ func (c *Client) PostEvents(ctx context.Context, evs []cloudapi.Event) (int, err
 	return out.Accepted, err
 }
 
+// Disconnect tells the cloud the owner turned the cloud off (`shedu enroll --off`). It
+// sends no body; the key in the header identifies the server, and the cloud revokes it.
+func (c *Client) Disconnect(ctx context.Context) error {
+	return c.do(ctx, cloudapi.PathDisconnect, struct{}{}, nil)
+}
+
 // Heartbeat reports that the agent is alive.
 func (c *Client) Heartbeat(ctx context.Context, hb cloudapi.Heartbeat) (cloudapi.HeartbeatResponse, error) {
 	var out cloudapi.HeartbeatResponse
