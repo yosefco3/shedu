@@ -110,8 +110,15 @@ Check a release by hand:
     sha256sum -c --ignore-missing SHA256SUMS
 
 `install.sh` checks every downloaded release against `SHA256SUMS` (not when you pass
-`--binary`). When `minisign` is installed it also requires a valid signature and refuses a
-release without one; without `minisign` it warns and checks `SHA256SUMS` only.
+`--binary`). When `minisign` is installed, it requires a valid signature whose signed comment
+names exactly the release being installed, for every release except v0.3.0 (the only one made
+before signing started, `SIGNED_SINCE=v0.3.1` in the script). A release without one is refused,
+so the signature cannot be stripped, and an older signed `SHA256SUMS` cannot be passed off as a
+newer release. Any other tag below v0.3.1 is refused outright. v0.3.0 itself installs with a
+`SHA256SUMS` check and a warning; until v0.3.1 is out it is the "latest" release, and after that
+someone able to point GitHub's "latest" back at it could still get v0.3.0 installed, with that
+warning shown. Without `minisign` the script warns and checks `SHA256SUMS` only. All files come
+from one tag: the latest release, or the one named with `install.sh --version vX.Y.Z`.
 `shedu upgrade` always requires the signature (it verifies it itself, without the minisign
 tool). The secret key is kept offline by the maintainer and in the GitHub Actions secrets used by
 the release workflow; it never appears in this repository. If it is ever replaced, the new

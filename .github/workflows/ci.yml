@@ -18,6 +18,8 @@ jobs:
       - run: make build
       - name: shell syntax
         run: bash -n packaging/install.sh && bash -n packaging/uninstall.sh && bash -n scripts/dev_telegram.sh
+      - name: install.sh download and signature checks
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq minisign && bash packaging/install_test.sh
       - name: shellcheck
         uses: ludeeus/action-shellcheck@2.0.0
         with:

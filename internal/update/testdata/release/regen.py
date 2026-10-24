@@ -11,6 +11,8 @@ Files written:
   SHA256SUMS.minisig                  prehashed ("ED", minisign's default) signature by test key
   SHA256SUMS.legacy.minisig           legacy ("Ed") signature by test key
   SHA256SUMS.otherkey.minisig         valid signature by other key (must be rejected)
+  SHA256SUMS.rc1.minisig              test key, trusted comment "shedu v0.3.1-rc1 SHA256SUMS"
+  SHA256SUMS.suffix.minisig           test key, trusted comment with extra text (must be rejected)
 
 With the real minisign tool instead (keys would then be random, not reproducible):
   minisign -G -W -p test.pub -s test.key
@@ -42,14 +44,14 @@ def pub(sk, keyid):
     return f"untrusted comment: minisign public key {ident:016X}\n{b64}\n".encode()
 
 
-def sig(sk, keyid, msg, prehashed=True):
+def sig(sk, keyid, msg, prehashed=True, trusted=TRUSTED):
     alg = b"ED" if prehashed else b"Ed"
     signed = hashlib.blake2b(msg, digest_size=64).digest() if prehashed else msg
     s = sk.sign(signed).signature
-    glob = sk.sign(s + TRUSTED).signature
+    glob = sk.sign(s + trusted).signature
     return (b"untrusted comment: signature from minisign secret key\n"
             + base64.b64encode(alg + keyid + s) + b"\n"
-            + b"trusted comment: " + TRUSTED + b"\n"
+            + b"trusted comment: " + trusted + b"\n"
             + base64.b64encode(glob) + b"\n")
 
 
@@ -65,3 +67,5 @@ write("SHA256SUMS", sums)
 write("SHA256SUMS.minisig", sig(*test, sums))
 write("SHA256SUMS.legacy.minisig", sig(*test, sums, prehashed=False))
 write("SHA256SUMS.otherkey.minisig", sig(*other, sums))
+write("SHA256SUMS.rc1.minisig", sig(*test, sums, trusted=b"shedu v0.3.1-rc1 SHA256SUMS"))
+write("SHA256SUMS.suffix.minisig", sig(*test, sums, trusted=b"shedu v0.3.1 SHA256SUMS and more"))

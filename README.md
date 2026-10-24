@@ -17,6 +17,8 @@ With the optional [Shedu Cloud](#shedu-cloud-optional) dashboard instead of your
 curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/install.sh | sudo bash -s -- --cloud <token>
 ```
 
+Options such as `--version vX.Y.Z` (a specific release) are listed by `install.sh --help`.
+
 ## Who it is for
 
 **Anyone who runs their own Linux server (a VPS) without a security person.** The server is yours,

@@ -9,6 +9,7 @@
 #   --chat-id ID       Telegram chat id (else asked / auto-detected)
 #   --lang he|en       language of the Telegram messages (default he); terminal output is always English
 #   --binary PATH      install this binary instead of downloading a release (dev)
+#   --version TAG      install this release (vX.Y.Z or vX.Y.Z-rcN) instead of the latest
 #   --upgrade          replace the binary and restart, keep config
 #   --yes              never ask; skip Telegram if not given
 #   --help             show this help
@@ -30,14 +31,17 @@ Options (all optional):
   --chat-id ID     Telegram chat id (else detected from your first message to the bot)
   --lang he|en     language of the alerts (default he); terminal output is always English
   --binary PATH    install this binary instead of downloading a release (development)
+  --version TAG    install this release (vX.Y.Z, or a pre-release such as vX.Y.Z-rc1)
+                   instead of the latest one
   --upgrade        replace the binary and restart the service; keeps the configuration
   --yes            never ask; skip Telegram if no token is given
   --help           show this help
 
-Release downloads are checked against SHA256SUMS (not with --binary). When minisign is
-installed, SHA256SUMS must also carry a valid signature by the release key, or nothing is
-installed; without minisign the script warns and checks SHA256SUMS only
-(apt install minisign, or dnf install minisign).
+Release downloads are checked against SHA256SUMS (not with --binary). Releases from
+v0.3.1 on are signed: when minisign is installed, SHA256SUMS must carry a valid signature
+by the release key that names the release being installed, or nothing is installed. Without
+minisign the script warns and checks SHA256SUMS only (apt install minisign, or dnf install
+minisign). Older releases (v0.3.0) were never signed and are checked with SHA256SUMS only.
 USAGE
 }
 
@@ -53,7 +57,17 @@ UNIT=/etc/systemd/system/shedu.service
 # a test checks that. Edit only this one assignment.
 MINISIGN_PUBKEY="RWTvgwLfc3RDnS1jVBV3b3vEPLs1HzysJTfbFsfUqEmGxk7T8KOjJ1uv"
 
-TOKEN=""; CHAT_ID=""; LANG_OPT="he"; BINARY=""; UPGRADE=0; YES=0; CLOUD_TOKEN=""; CLOUD_URL=""
+# The first signed release. From this version on (pre-releases of it included) the signature
+# is required whenever minisign is installed, so it cannot be stripped from a release. The
+# only older release, v0.3.0, predates signing and is checked with SHA256SUMS alone; any other
+# tag below SIGNED_SINCE is refused (it can only be a fake release).
+SIGNED_SINCE=v0.3.1
+UNSIGNED_RELEASES="v0.3.0"
+
+RELEASES="https://github.com/$REPO/releases"
+MINISIGN_BIN=minisign   # tests point this elsewhere
+
+TOKEN=""; CHAT_ID=""; LANG_OPT="he"; BINARY=""; VERSION=""; UPGRADE=0; YES=0; CLOUD_TOKEN=""; CLOUD_URL=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --token) TOKEN="$2"; shift 2;;
@@ -62,6 +76,7 @@ while [ $# -gt 0 ]; do
     --chat-id) CHAT_ID="$2"; shift 2;;
     --lang) LANG_OPT="$2"; shift 2;;
     --binary) BINARY="$2"; shift 2;;
+    --version) VERSION="$2"; shift 2;;
     --upgrade) UPGRADE=1; shift;;
     --yes) YES=1; shift;;
     -h|--help) usage; exit 0;;
@@ -74,6 +89,90 @@ done
 say() { echo "$2"; }
 die() { echo "✖ $*" >&2; exit 1; }
 
+# --- binary ---------------------------------------------------------------
+install_binary() {
+  if [ -n "$BINARY" ]; then
+    install -m 0755 "$BINARY" "$BIN"
+    return
+  fi
+  local arch tag
+  case "$(uname -m)" in
+    x86_64) arch=amd64;;
+    aarch64|arm64) arch=arm64;;
+    *) die "unsupported architecture: $(uname -m)";;
+  esac
+  tag=${VERSION:-$(latest_tag)}
+  valid_tag "$tag" || die "not a release tag: '$tag' (expected vX.Y.Z or vX.Y.Z-rcN)"
+  # Every file comes from the same tag, so a release published mid-download can't mix in.
+  local base="$RELEASES/download/$tag"
+  local tmp; tmp=$(mktemp -d)
+  say "⬇ מוריד את Shedu $tag ($arch)..." "⬇ Downloading Shedu $tag ($arch)..."
+  curl -fsSL "$base/shedu_linux_$arch" -o "$tmp/shedu" || die "download failed: $base/shedu_linux_$arch"
+  curl -fsSL "$base/SHA256SUMS" -o "$tmp/SHA256SUMS" || die "download failed: $base/SHA256SUMS"
+  verify_signature "$tmp" "$base" "$tag"
+  (cd "$tmp" && mv shedu "shedu_linux_$arch" && sha256sum -c --ignore-missing SHA256SUMS >/dev/null) \
+    || die "checksum mismatch — download aborted"
+  install -m 0755 "$tmp/shedu_linux_$arch" "$BIN"
+  rm -rf "$tmp"
+}
+
+# latest_tag: the tag GitHub's "latest release" points to (never a pre-release).
+latest_tag() {
+  local url
+  url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$RELEASES/latest") \
+    || die "could not find the latest release on GitHub"
+  echo "${url##*/}"
+}
+
+# No leading zeros (bash would read 08 as bad octal), at most 4 digits per number.
+valid_tag() { [[ $1 =~ ^v(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})(-rc[1-9][0-9]*)?$ ]]; }
+
+# version_at_least A B: is A's vX.Y.Z core >= B's? A pre-release counts as its release,
+# so v0.3.1-rc1 is "at least v0.3.1" and must be signed too.
+version_at_least() {
+  local a=${1#v} b=${2#v} a1 a2 a3 b1 b2 b3
+  a=${a%%-*}; b=${b%%-*}
+  IFS=. read -r a1 a2 a3 <<<"$a"
+  IFS=. read -r b1 b2 b3 <<<"$b"
+  (( 10#$a1 != 10#$b1 )) && { (( 10#$a1 > 10#$b1 )); return; }
+  (( 10#$a2 != 10#$b2 )) && { (( 10#$a2 > 10#$b2 )); return; }
+  (( 10#$a3 >= 10#$b3 ))
+}
+
+# verify_signature DIR BASE_URL TAG: for a release from $SIGNED_SINCE on, with minisign
+# installed, SHA256SUMS must carry a valid signature by the release key whose signed
+# comment names TAG ("shedu TAG SHA256SUMS"); a missing one is an error too. Without
+# minisign, or for an older release, the SHA256SUMS check is the only check, and the
+# script says so.
+verify_signature() {
+  local dir=$1 base=$2 tag=$3 out
+  case "$MINISIGN_PUBKEY" in RW*) ;; *) return 0;; esac   # a fork without a key
+  if ! version_at_least "$tag" "$SIGNED_SINCE"; then
+    case " $UNSIGNED_RELEASES " in
+      *" $tag "*) ;;
+      *) die "$tag is not a shedu release (signed releases start at $SIGNED_SINCE) — download aborted";;
+    esac
+    say "⚠ $tag קודמת להפצות החתומות (מ-$SIGNED_SINCE): נבדקת מול SHA256SUMS בלבד." \
+        "⚠ $tag predates signed releases (from $SIGNED_SINCE on): checking SHA256SUMS only."
+    return 0
+  fi
+  if ! command -v "$MINISIGN_BIN" >/dev/null 2>&1; then
+    say "⚠ minisign לא מותקן: ההורדה נבדקת מול SHA256SUMS בלבד, בלי בדיקת חתימה (apt install minisign)." \
+        "⚠ minisign is not installed: checking SHA256SUMS only, not the release signature (apt install minisign)."
+    return 0
+  fi
+  curl -fsSL "$base/SHA256SUMS.minisig" -o "$dir/SHA256SUMS.minisig" \
+    || die "release $tag has no signature (SHA256SUMS.minisig) — download aborted"
+  out=$("$MINISIGN_BIN" -V -P "$MINISIGN_PUBKEY" -m "$dir/SHA256SUMS" -x "$dir/SHA256SUMS.minisig" 2>&1) \
+    || die "signature check failed — download aborted"
+  grep -qxF "Trusted comment: shedu $tag SHA256SUMS" <<<"$out" \
+    || die "the signature is not for $tag — download aborted"
+  say "✔ חתימת ההפצה אומתה (minisign)." "✔ Release signature verified (minisign)."
+}
+
+# Sourced by packaging/install_test.sh with SHEDU_INSTALL_LIB=1: functions only.
+[ "${SHEDU_INSTALL_LIB:-}" = 1 ] && return 0
+
 [ "$(id -u)" -eq 0 ] || die "$(say 'יש להריץ עם sudo' 'please run with sudo')"
 
 HAS_SYSTEMD=1
@@ -82,48 +181,6 @@ if [ -f /etc/debian_version ]; then :; else
   say "⚠ זו לא מערכת Debian/Ubuntu. Shedu ירוץ, אבל בדיקת העדכונים תדולג." \
       "⚠ Not a Debian/Ubuntu system. Shedu will run, but the updates check is skipped."
 fi
-
-# --- binary ---------------------------------------------------------------
-install_binary() {
-  if [ -n "$BINARY" ]; then
-    install -m 0755 "$BINARY" "$BIN"
-    return
-  fi
-  local arch
-  case "$(uname -m)" in
-    x86_64) arch=amd64;;
-    aarch64|arm64) arch=arm64;;
-    *) die "unsupported architecture: $(uname -m)";;
-  esac
-  local base="https://github.com/$REPO/releases/latest/download"
-  local tmp; tmp=$(mktemp -d)
-  say "⬇ מוריד את Shedu ($arch)..." "⬇ Downloading Shedu ($arch)..."
-  curl -fsSL "$base/shedu_linux_$arch" -o "$tmp/shedu"
-  curl -fsSL "$base/SHA256SUMS" -o "$tmp/SHA256SUMS"
-  verify_signature "$tmp" "$base"
-  (cd "$tmp" && mv shedu "shedu_linux_$arch" && sha256sum -c --ignore-missing SHA256SUMS >/dev/null) \
-    || die "checksum mismatch — download aborted"
-  install -m 0755 "$tmp/shedu_linux_$arch" "$BIN"
-  rm -rf "$tmp"
-}
-
-# verify_signature DIR BASE_URL: with minisign installed, SHA256SUMS must carry a valid
-# signature by the release key (a missing one is an error too: it could be a downgrade).
-# Without minisign the SHA256SUMS check below is the only check, and the script says so.
-verify_signature() {
-  local dir=$1 base=$2
-  case "$MINISIGN_PUBKEY" in RW*) ;; *) return 0;; esac   # a fork without a key
-  if ! command -v minisign >/dev/null 2>&1; then
-    say "⚠ minisign לא מותקן: ההורדה נבדקת מול SHA256SUMS בלבד, בלי בדיקת חתימה (apt install minisign)." \
-        "⚠ minisign is not installed: checking SHA256SUMS only, not the release signature (apt install minisign)."
-    return 0
-  fi
-  curl -fsSL "$base/SHA256SUMS.minisig" -o "$dir/SHA256SUMS.minisig" \
-    || die "this release has no signature (SHA256SUMS.minisig) — download aborted"
-  minisign -Vq -P "$MINISIGN_PUBKEY" -m "$dir/SHA256SUMS" -x "$dir/SHA256SUMS.minisig" >/dev/null \
-    || die "signature check failed — download aborted"
-  say "✔ חתימת ההפצה אומתה (minisign)." "✔ Release signature verified (minisign)."
-}
 
 # --- unit (also rewritten on --upgrade, so hardening changes reach old installs) ---
 write_unit() {
