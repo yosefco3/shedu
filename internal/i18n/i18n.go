@@ -6,6 +6,8 @@ package i18n
 import (
 	"bytes"
 	"sort"
+	"strconv"
+	"strings"
 	"text/template"
 )
 
@@ -52,8 +54,22 @@ func Render(lang Lang, id string, args map[string]string) Msg {
 	return Msg{Title: fill(m.Title, args), Explain: fill(m.Explain, args)}
 }
 
+// funcs are available in every message template.
+var funcs = template.FuncMap{"plural": plural}
+
+// plural picks a grammatical form: {{plural .count "1 key" "%s keys"}}. The one form is
+// used when count is exactly 1; anything else, including an unparsable count, gets the
+// many form. Every %s in the chosen form becomes the count as given.
+func plural(count, one, many string) string {
+	form := many
+	if n, err := strconv.Atoi(strings.TrimSpace(count)); err == nil && n == 1 {
+		form = one
+	}
+	return strings.ReplaceAll(form, "%s", count)
+}
+
 func fill(s string, args map[string]string) string {
-	t, err := template.New("").Option("missingkey=zero").Parse(s)
+	t, err := template.New("").Funcs(funcs).Option("missingkey=zero").Parse(s)
 	if err != nil {
 		return s
 	}
@@ -98,7 +114,7 @@ var UI = map[Lang]map[string]string{
 	He: {
 		"score":     "ציון תקינות",
 		"host":      "שרת",
-		"more":      "ועוד {{.n}} ממצאים. לרשימה המלאה: sudo shedu check",
+		"more":      "{{plural .n \"ועוד ממצא אחד\" \"ועוד %s ממצאים\"}}. לרשימה המלאה: sudo shedu check",
 		"fix":       "תיקון",
 		"nothing":   "לא נמצא שום דבר שדורש טיפול.",
 		"connected": "🛡 Shedu מחובר לשרת {{.host}}.",
