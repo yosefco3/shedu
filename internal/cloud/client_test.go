@@ -99,3 +99,18 @@ func TestDefaultURL(t *testing.T) {
 		t.Fatal(DefaultURL)
 	}
 }
+
+func TestRefusesPlainHTTPOverTheNetwork(t *testing.T) {
+	for _, base := range []string{"http://api.example.com", "http://10.0.0.5:8080", "ftp://x", "not a url"} {
+		c := &Client{BaseURL: base, Key: fakeKey}
+		err := c.PostReport(context.Background(), cloudapi.Report{})
+		if err == nil || strings.Contains(err.Error(), fakeKey) {
+			t.Errorf("%s: %v", base, err)
+		}
+	}
+	for _, base := range []string{"https://api.getshedu.com", "http://localhost:8080", "http://127.0.0.1:1", "http://[::1]:1"} {
+		if err := checkURL(base); err != nil {
+			t.Errorf("%s must be allowed: %v", base, err)
+		}
+	}
+}

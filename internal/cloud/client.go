@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -65,6 +67,9 @@ func (c *Client) do(ctx context.Context, path string, in, out any) error {
 	if base == "" {
 		base = DefaultURL
 	}
+	if err := checkURL(base); err != nil {
+		return err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(base, "/")+path, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("cloud: %s", c.redact(err.Error()))
@@ -107,6 +112,25 @@ func (c *Client) do(ctx context.Context, path string, in, out any) error {
 		}
 	}
 	return nil
+}
+
+// checkURL allows https, and plain http only to this machine (local development), so the
+// server key never travels in clear text over a network.
+func checkURL(base string) error {
+	u, err := url.Parse(base)
+	if err != nil || u.Host == "" {
+		return fmt.Errorf("cloud: invalid CLOUD_URL %q", base)
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		host := u.Hostname()
+		if ip := net.ParseIP(host); host == "localhost" || (ip != nil && ip.IsLoopback()) {
+			return nil
+		}
+	}
+	return fmt.Errorf("cloud: refusing %s: CLOUD_URL must use https (plain http only to localhost)", u.Redacted())
 }
 
 func (c *Client) version() string {
