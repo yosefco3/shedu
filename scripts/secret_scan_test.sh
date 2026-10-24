@@ -100,6 +100,32 @@ has "keys.txt:4  private-key  ----****"
 hasnot "${ANTHROPIC_KEY#sk-ant-api03-}"
 g reset -q --hard origin/main
 
+echo "# minisign keys (secret parts built at run time)"
+MS_HEAD="untrusted comment: minisign"
+MS_ENC_BODY="RWRTY0Iy$(printf 'Q%.0s' {1..200})"      # encrypted key: 8 + 200 base64 characters
+MS_PLAIN_BODY="RWQAAEIy$(printf 'Q%.0s' {1..100})"    # unencrypted key (minisign -G -W): 8 + 100
+MS_PUB_KEY="RWTvgwLfc3RDnS1jVBV3b3vEPLs1HzysJTfbFsfUqEmGxk7T8KOjJ1uv"
+MS_SIG="RURETUJBuxFYGWoGqmRxqDjJaxW4/7mYjjkl4cWVLhab1+JiO4wqh+am3Pi3gnLrf0otf2kFx02VrbJuSqf9h1rmPlsJcRacdQw="
+mkdir -p "$REPO/keys"
+printf '%s encrypted secret key\n%s\n' "$MS_HEAD" "$MS_ENC_BODY" >"$REPO/keys/minisign.key"
+g add -A && g commit -qm "encrypted minisign key"
+check "an encrypted minisign secret key is blocked" 1 g push --dry-run origin main
+has "keys/minisign.key:1  minisign-secret-key  untr****"
+has "keys/minisign.key:2  minisign-secret-key  RWRT****"
+g reset -q --hard origin/main
+mkdir -p "$REPO/keys"
+printf '%s\n' "$MS_PLAIN_BODY" >"$REPO/keys/plain.key"
+g add -A && g commit -qm "unencrypted minisign key"
+check "an unencrypted minisign secret key body is blocked" 1 g push --dry-run origin main
+has "keys/plain.key:1  minisign-secret-key  RWQA****"
+g reset -q --hard origin/main
+mkdir -p "$REPO/keys"
+printf 'untrusted comment: minisign public key 9D437473DF0283EF\n%s\n%s\n' "$MS_PUB_KEY" "$MS_SIG" >"$REPO/keys/release.minisig"
+g add -A && g commit -qm "minisign public key and signature"
+check "a minisign public key, its comment and a signature pass" 0 g push --dry-run origin main
+has "secret-scan: ok (1 commit(s)"
+g reset -q --hard origin/main
+
 echo "# fixtures under testdata/"
 mkdir -p "$REPO/internal/x/testdata"
 printf '%s fake key for tests\n' "$PEM_HEADER" >"$REPO/internal/x/testdata/key.pem"

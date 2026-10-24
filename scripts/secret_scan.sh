@@ -21,6 +21,7 @@
 #   openai-style-key     sk- (or sk-proj-) followed by 32+ letters/digits
 #   aws-access-key-id    AKIA/ASIA/ABIA/ACCA followed by 16 upper-case letters/digits
 #   private-key          a "-----BEGIN ... PRIVATE KEY-----" header
+#   minisign-secret-key  a minisign secret key (its comment line, or base64 starting RWRTY0Iy / RWQAAEIy)
 #   config-file          ANY non-blank, non-comment line in a file named guard.conf, .env
 #                        or .env.<something> (.env.example/.sample/.template/.dist excepted)
 #
@@ -52,6 +53,8 @@ PATTERNS=(
   'openai-style-key|sk-(proj-)?[A-Za-z0-9]{32,}'
   'aws-access-key-id|(AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}'
   'private-key|-----BEGIN [A-Z ]*PRIVATE KEY( BLOCK)?-----'
+  'minisign-secret-key|RW(RTY0|QAAE)Iy[A-Za-z0-9+/]{80,}'
+  'minisign-secret-key|untrusted comment: minisign (encrypted )?secret key'
 )
 COMBINED=""
 for entry in "${PATTERNS[@]}"; do

@@ -27,13 +27,13 @@ import (
 	"time"
 )
 
-// ReleasePublicKey is the minisign public key that signs shedu releases (the second line
-// of minisign.pub, "RW..."), the same key as in packaging/install.sh and README.md.
-//
-// PLACEHOLDER: until the real key is pasted here, Verify refuses every update, so a build
-// made from this source can never replace itself. Edit only this one constant.
-const ReleasePublicKey = placeholderKey
+// ReleasePublicKey is the minisign public key that signs shedu releases (key id
+// 9D437473DF0283EF), the same key as in packaging/install.sh, README.md, SECURITY.md and
+// https://api.getshedu.com/keys; TestReleaseKeyIsTheSameEverywhere checks that.
+const ReleasePublicKey = "RWTvgwLfc3RDnS1jVBV3b3vEPLs1HzysJTfbFsfUqEmGxk7T8KOjJ1uv"
 
+// placeholderKey is what a fork without its own key would carry; Verify refuses it, so
+// such a build can never replace itself.
 const placeholderKey = "REPLACE_WITH_MINISIGN_PUBLIC_KEY"
 
 // ErrNoReleaseKey means this build carries no release key and so cannot update itself.

@@ -97,10 +97,24 @@ compare with `SHA256SUMS`:
       -ldflags "-s -w -buildid= -X main.version=vX.Y.Z" -o shedu_linux_amd64 ./cmd/shedu
     sha256sum shedu_linux_amd64
 
+**Release signature:** from v0.3.1 on, `SHA256SUMS` is signed with minisign and published as
+`SHA256SUMS.minisig` next to each release. The release public key (key id `9D437473DF0283EF`) is
+baked into `install.sh` and into the agent (`internal/update`), printed in the README, and served
+as plain text at [https://api.getshedu.com/keys](https://api.getshedu.com/keys):
+
+    RWTvgwLfc3RDnS1jVBV3b3vEPLs1HzysJTfbFsfUqEmGxk7T8KOjJ1uv
+
+Check a release by hand:
+
+    minisign -Vm SHA256SUMS -x SHA256SUMS.minisig -P RWTvgwLfc3RDnS1jVBV3b3vEPLs1HzysJTfbFsfUqEmGxk7T8KOjJ1uv
+    sha256sum -c --ignore-missing SHA256SUMS
+
 `install.sh` checks every downloaded release against `SHA256SUMS` (not when you pass
-`--binary`). Releases are **not signed yet**. Once they are, `SHA256SUMS.minisig` is published
-next to each release, its public key is printed in the README and baked into `install.sh`,
-and `install.sh` then refuses a release without a valid signature whenever `minisign` is
-installed.
+`--binary`). When `minisign` is installed it also requires a valid signature and refuses a
+release without one; without `minisign` it warns and checks `SHA256SUMS` only.
+`shedu upgrade` always requires the signature (it verifies it itself, without the minisign
+tool). The secret key is kept offline by the maintainer and in the GitHub Actions secrets used by
+the release workflow; it never appears in this repository. If it is ever replaced, the new
+public key is published in a release signed with the old one.
 
 **Supported versions:** the latest release only.

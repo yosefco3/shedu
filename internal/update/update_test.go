@@ -153,16 +153,12 @@ func TestVerifyAcceptsSignedRelease(t *testing.T) {
 	}
 }
 
+// A build carrying the placeholder (a fork without its own key) can never update itself.
 func TestPlaceholderBuildNeverUpdates(t *testing.T) {
-	key := ReleasePublicKey
-	if key != placeholderKey {
-		t.Fatalf("ReleasePublicKey is no longer the placeholder (%q): update this test deliberately", key)
-	}
 	sums, sig, bin := stageRelease(t, "SHA256SUMS.minisig", "shedu_linux_amd64")
 	for name, u := range map[string]*Updater{
-		"empty key (defaults to the embedded one)": {},
-		"explicit placeholder key":                 {PublicKey: placeholderKey},
-		"blank key":                                {PublicKey: "   "},
+		"explicit placeholder key": {PublicKey: placeholderKey},
+		"blank key":                {PublicKey: "   "},
 	} {
 		if err := u.Verify(sums, sig, bin, "v0.3.1"); !errors.Is(err, ErrNoReleaseKey) {
 			t.Errorf("%s: got %v, want ErrNoReleaseKey", name, err)
@@ -474,7 +470,7 @@ func TestUpgradeEndToEnd(t *testing.T) {
 func TestUpgradeWithPlaceholderKeyTouchesNothing(t *testing.T) {
 	srv := newFixtureServer(t)
 	u, h, _ := newApplyUpdater(t)
-	u.PublicKey = "" // falls back to the embedded placeholder
+	u.PublicKey = placeholderKey
 	u.DownloadBase, u.Dir, u.Arch = srv.URL, t.TempDir(), "amd64"
 	_, err := u.Upgrade(context.Background(), "v0.3.1")
 	if !errors.Is(err, ErrNoReleaseKey) {
@@ -572,5 +568,33 @@ func TestFetchRefusesAnOversizedBinary(t *testing.T) {
 	}
 	if exists(filepath.Join(u.Dir, "shedu_linux_amd64")) {
 		t.Error("the partial download must be removed")
+	}
+}
+
+// The embedded key is the real release key, and it does not accept the test key's signatures.
+func TestEmbeddedReleaseKey(t *testing.T) {
+	pk, err := ParsePublicKey(ReleasePublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%X", []byte{pk.ID[7], pk.ID[6], pk.ID[5], pk.ID[4], pk.ID[3], pk.ID[2], pk.ID[1], pk.ID[0]}); got != "9D437473DF0283EF" {
+		t.Errorf("key id %s", got)
+	}
+	sums, sig, bin := stageRelease(t, "SHA256SUMS.minisig", "shedu_linux_amd64")
+	if err := (&Updater{}).Verify(sums, sig, bin, "v0.3.1"); !errors.Is(err, ErrSignatureInvalid) {
+		t.Errorf("a release signed by the test key: got %v, want ErrSignatureInvalid", err)
+	}
+}
+
+// The same release key must appear in every place users and the release workflow read it.
+func TestReleaseKeyIsTheSameEverywhere(t *testing.T) {
+	install := mustRead(t, "../../packaging/install.sh")
+	if !strings.Contains(install, "\nMINISIGN_PUBKEY=\""+ReleasePublicKey+"\"\n") {
+		t.Error("packaging/install.sh: MINISIGN_PUBKEY differs from ReleasePublicKey")
+	}
+	for _, f := range []string{"../../README.md", "../../SECURITY.md"} {
+		if !strings.Contains(mustRead(t, f), ReleasePublicKey) {
+			t.Errorf("%s does not show ReleasePublicKey", f)
+		}
 	}
 }

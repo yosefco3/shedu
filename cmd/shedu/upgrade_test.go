@@ -103,7 +103,7 @@ func TestUpgradeCheckChangesNothingAndSendsNoHeartbeat(t *testing.T) {
 		io.WriteString(w, `{"latest_version":"v9.9.9"}`) //nolint:errcheck
 	})
 	gh := githubLatest(t, "v0.3.1")
-	dir, bin := seams(t, "v0.3.0", func(u *update.Updater) { u.APIBase = gh.srv.URL; u.PublicKey = "" })
+	dir, bin := seams(t, "v0.3.0", func(u *update.Updater) { u.APIBase = gh.srv.URL })
 	conf := filepath.Join(t.TempDir(), "guard.conf")
 	os.WriteFile(conf, []byte("CLOUD_URL=\""+cloudSrv.srv.URL+"\"\nCLOUD_KEY=\""+offKey+"\"\n"), 0o600) //nolint:errcheck
 
@@ -137,11 +137,24 @@ func TestUpgradeCheckWithoutCloudAsksGitHub(t *testing.T) {
 
 func TestUpgradeRefusesWithThePlaceholderKey(t *testing.T) {
 	gh, dl := githubLatest(t, "v0.3.1"), downloads(t)
-	_, bin := seams(t, "v0.3.0", func(u *update.Updater) { u.APIBase, u.DownloadBase = gh.srv.URL, dl.srv.URL })
+	_, bin := seams(t, "v0.3.0", func(u *update.Updater) {
+		u.APIBase, u.DownloadBase, u.PublicKey = gh.srv.URL, dl.srv.URL, "REPLACE_WITH_MINISIGN_PUBLIC_KEY"
+	})
 	var code int
 	captureStdout(t, func() { code = run([]string{"upgrade", "--config", "/nonexistent"}) })
 	if code != 1 || len(dl.seen()) != 0 || content(t, bin) != "OLD" {
 		t.Fatalf("exit %d, downloads %q, binary %q", code, dl.seen(), content(t, bin))
+	}
+}
+
+// With the real embedded key, a release signed by any other key is refused.
+func TestUpgradeRefusesAReleaseNotSignedByTheReleaseKey(t *testing.T) {
+	gh, dl := githubLatest(t, "v0.3.1"), downloads(t)
+	_, bin := seams(t, "v0.3.0", func(u *update.Updater) { u.APIBase, u.DownloadBase, u.Arch = gh.srv.URL, dl.srv.URL, "amd64" })
+	var code int
+	captureStdout(t, func() { code = run([]string{"upgrade", "--config", "/nonexistent"}) })
+	if code != 1 || content(t, bin) != "OLD" {
+		t.Fatalf("exit %d, binary %q", code, content(t, bin))
 	}
 }
 

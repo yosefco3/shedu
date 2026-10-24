@@ -85,13 +85,19 @@ sudo ./bin/shedu check --json
 - **What leaves the server:** only the Telegram messages you configured, sent to
   `api.telegram.org` over TLS, and, if you enroll the server in Shedu Cloud, the reports listed
   in [SECURITY.md](SECURITY.md) to `api.getshedu.com`. No telemetry, no analytics, no third parties.
-- **Verifiable releases:** reproducible builds and `SHA256SUMS` checked by the installer (how to
-  rebuild and compare: [SECURITY.md](SECURITY.md)). Releases are not signed with minisign yet;
-  the public key will be published here with the first signed release. Release public key
-  (minisign): `REPLACE_WITH_MINISIGN_PUBLIC_KEY` (placeholder). To check a signed release by hand:
+- **Verifiable releases:** reproducible builds (how to rebuild and compare:
+  [SECURITY.md](SECURITY.md)), and `SHA256SUMS` signed with minisign from v0.3.1 on. The installer
+  and `shedu upgrade` check the signature. Release public key (also at
+  [api.getshedu.com/keys](https://api.getshedu.com/keys)):
+
+  ```text
+  RWTvgwLfc3RDnS1jVBV3b3vEPLs1HzysJTfbFsfUqEmGxk7T8KOjJ1uv
+  ```
+
+  To check a release by hand:
 
   ```bash
-  minisign -Vm SHA256SUMS -x SHA256SUMS.minisig -P <the key above> && sha256sum -c --ignore-missing SHA256SUMS
+  minisign -Vm SHA256SUMS -x SHA256SUMS.minisig -P RWTvgwLfc3RDnS1jVBV3b3vEPLs1HzysJTfbFsfUqEmGxk7T8KOjJ1uv && sha256sum -c --ignore-missing SHA256SUMS
   ```
 - Runs under systemd with `ProtectSystem=strict`, `NoNewPrivileges` and a 64 MB memory cap.
 - Found a problem? See [SECURITY.md](SECURITY.md).

@@ -35,8 +35,9 @@ Options (all optional):
   --help           show this help
 
 Release downloads are checked against SHA256SUMS (not with --binary). When minisign is
-installed and this script carries the release public key, SHA256SUMS must also carry a
-valid signature.
+installed, SHA256SUMS must also carry a valid signature by the release key, or nothing is
+installed; without minisign the script warns and checks SHA256SUMS only
+(apt install minisign, or dnf install minisign).
 USAGE
 }
 
@@ -47,10 +48,10 @@ CONF=$CONF_DIR/guard.conf
 STATE_DIR=/var/lib/shedu
 UNIT=/etc/systemd/system/shedu.service
 
-# Release signing key (minisign): the second line of minisign.pub, which starts with "RW".
-# Until a real key is set here, downloads are checked with SHA256SUMS only. Keep it identical
-# to the key in README.md. Edit only this one assignment.
-MINISIGN_PUBKEY="REPLACE_WITH_MINISIGN_PUBLIC_KEY"
+# Release signing key (minisign public key, key id 9D437473DF0283EF). Keep it identical to
+# README.md, SECURITY.md, internal/update (ReleasePublicKey) and https://api.getshedu.com/keys;
+# a test checks that. Edit only this one assignment.
+MINISIGN_PUBKEY="RWTvgwLfc3RDnS1jVBV3b3vEPLs1HzysJTfbFsfUqEmGxk7T8KOjJ1uv"
 
 TOKEN=""; CHAT_ID=""; LANG_OPT="he"; BINARY=""; UPGRADE=0; YES=0; CLOUD_TOKEN=""; CLOUD_URL=""
 while [ $# -gt 0 ]; do
@@ -106,13 +107,17 @@ install_binary() {
   rm -rf "$tmp"
 }
 
-# verify_signature DIR BASE_URL: with a real public key and minisign installed, SHA256SUMS
-# must carry a valid signature (a missing one is an error too: it could be a downgrade).
-# Otherwise the SHA256SUMS check below is the only check, as before signing existed.
+# verify_signature DIR BASE_URL: with minisign installed, SHA256SUMS must carry a valid
+# signature by the release key (a missing one is an error too: it could be a downgrade).
+# Without minisign the SHA256SUMS check below is the only check, and the script says so.
 verify_signature() {
   local dir=$1 base=$2
-  case "$MINISIGN_PUBKEY" in RW*) ;; *) return 0;; esac   # no real key baked in yet
-  command -v minisign >/dev/null 2>&1 || return 0
+  case "$MINISIGN_PUBKEY" in RW*) ;; *) return 0;; esac   # a fork without a key
+  if ! command -v minisign >/dev/null 2>&1; then
+    say "⚠ minisign לא מותקן: ההורדה נבדקת מול SHA256SUMS בלבד, בלי בדיקת חתימה (apt install minisign)." \
+        "⚠ minisign is not installed: checking SHA256SUMS only, not the release signature (apt install minisign)."
+    return 0
+  fi
   curl -fsSL "$base/SHA256SUMS.minisig" -o "$dir/SHA256SUMS.minisig" \
     || die "this release has no signature (SHA256SUMS.minisig) — download aborted"
   minisign -Vq -P "$MINISIGN_PUBKEY" -m "$dir/SHA256SUMS" -x "$dir/SHA256SUMS.minisig" >/dev/null \
