@@ -18,6 +18,7 @@ import (
 	"github.com/yosefco3/shedu/internal/finding"
 	"github.com/yosefco3/shedu/internal/i18n"
 	"github.com/yosefco3/shedu/internal/notify"
+	"github.com/yosefco3/shedu/internal/version"
 	"github.com/yosefco3/shedu/internal/watch"
 	"github.com/yosefco3/shedu/pkg/cloudapi"
 )
@@ -222,7 +223,7 @@ func (d *Daemon) sendDaily(ctx context.Context) {
 		report.Host = d.Cfg.Hostname
 	}
 	m := ReportMessage(report, d.Cfg.Lang, i18n.T(d.Cfg.Lang, "daily", map[string]string{"host": report.Host}), d.Version)
-	if v := d.latestVersion(); v != "" && d.Version != "" && v != d.Version {
+	if v := d.latestVersion(); version.Newer(v, d.Version) {
 		m.Text += "\n\n" + notify.Escape(i18n.T(d.Cfg.Lang, "update", map[string]string{"latest": v, "current": d.Version}))
 	}
 	d.send(ctx, m)
@@ -309,7 +310,7 @@ func (d *Daemon) noteLatest(v string) {
 	changed := v != d.latest.version
 	d.latest.version = v
 	d.latest.Unlock()
-	if changed && v != "" && d.Version != "" && v != d.Version {
+	if changed && version.Newer(v, d.Version) {
 		d.Log.Printf("cloud: a newer shedu is available: %s (running %s)", v, d.Version)
 	}
 }

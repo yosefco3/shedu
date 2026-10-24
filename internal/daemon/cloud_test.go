@@ -158,3 +158,30 @@ func TestDailyReportMentionsNewVersion(t *testing.T) {
 		t.Errorf("daily: %q", rec.msgs[0])
 	}
 }
+
+// A build from git (v0.2.0-4-gHASH) is at least v0.2.0, so the cloud announcing v0.2.0
+// is not news: no log line and no update line in the daily report.
+func TestNoUpdateNudgeForGitDescribeBuild(t *testing.T) {
+	rec := &recorder{}
+	var logs strings.Builder
+	d := &Daemon{Cfg: config.Config{Lang: i18n.En, Hostname: "h"}, Version: "v0.2.0-4-gabc1234", Log: log.New(&logs, "", 0),
+		RunCheck: func(context.Context) finding.Report { return finding.Report{Host: "h"} }}
+	d.out = newOutbox(rec, d.Log, time.Millisecond, time.Millisecond)
+	d.noteLatest("v0.2.0")
+	if d.latestVersion() != "v0.2.0" {
+		t.Errorf("latest version not recorded: %q", d.latestVersion())
+	}
+	if logs.Len() != 0 {
+		t.Errorf("unexpected log output: %q", logs.String())
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.out.run(ctx)
+	d.sendDaily(ctx)
+	waitFor(t, func() bool { return rec.count() == 1 })
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if strings.Contains(rec.msgs[0], "newer Shedu") || strings.Contains(rec.msgs[0], "v0.2.0") {
+		t.Errorf("daily report must not mention an update: %q", rec.msgs[0])
+	}
+}
