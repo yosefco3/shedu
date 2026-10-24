@@ -15,14 +15,17 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go test -timeout 120s ./...
-      - name: build
+      - run: go test -race -timeout 180s ./...
+      - name: build (reproducible)
+        # Same source + same Go version => same bytes: no cgo, no local paths, no VCS stamp,
+        # empty build id. Anyone can rebuild a tag and compare with SHA256SUMS.
         env:
           CGO_ENABLED: "0"
           GOOS: linux
           GOARCH: ${{ matrix.goarch }}
         run: |
-          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+          go build -trimpath -buildvcs=false \
+            -ldflags "-s -w -buildid= -X main.version=${GITHUB_REF_NAME}" \
             -o "shedu_linux_${GOARCH}" ./cmd/shedu
       - uses: actions/upload-artifact@v4
         with:
@@ -31,6 +34,10 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      # Signing is optional: it runs only when the repository has the MINISIGN_SECRET_KEY secret.
+      # The secrets themselves are given to the signing step only, not to the other actions.
+      HAS_SIGNING_KEY: ${{ secrets.MINISIGN_SECRET_KEY != '' }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -38,10 +45,53 @@ jobs:
           merge-multiple: true
       - name: checksums
         run: cd dist && sha256sum shedu_linux_* > SHA256SUMS && cat SHA256SUMS
+      - uses: actions/checkout@v4
+        if: env.HAS_SIGNING_KEY == 'true'
+        with:
+          path: src
+          sparse-checkout: packaging/install.sh
+          sparse-checkout-cone-mode: false
+      - name: sign checksums
+        id: sign
+        if: env.HAS_SIGNING_KEY == 'true'
+        # A signing problem must never block the release: it is then published unsigned and the
+        # next step leaves a warning on the run.
+        continue-on-error: true
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+          MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq minisign
+          umask 077
+          key="$RUNNER_TEMP/minisign.key"
+          printf '%s\n' "$MINISIGN_SECRET_KEY" > "$key"
+          trusted="shedu ${GITHUB_REF_NAME} SHA256SUMS"
+          # A key made with `minisign -G -W` has no password; otherwise it is read from stdin.
+          if [ -n "$MINISIGN_PASSWORD" ]; then
+            printf '%s\n' "$MINISIGN_PASSWORD" | minisign -S -s "$key" -m dist/SHA256SUMS -x "$RUNNER_TEMP/sig" -t "$trusted" || { rm -f "$key"; exit 1; }
+          else
+            minisign -S -s "$key" -m dist/SHA256SUMS -x "$RUNNER_TEMP/sig" -t "$trusted" || { rm -f "$key"; exit 1; }
+          fi
+          rm -f "$key"
+          # The signature must verify with the public key users get in install.sh.
+          pub=$(sed -n 's/^MINISIGN_PUBKEY="\(RW[^"]*\)"$/\1/p' src/packaging/install.sh)
+          if [ -n "$pub" ]; then
+            minisign -Vq -P "$pub" -m dist/SHA256SUMS -x "$RUNNER_TEMP/sig"
+          else
+            echo "::warning::install.sh has no public key yet: users cannot verify this signature"
+          fi
+          mv "$RUNNER_TEMP/sig" dist/SHA256SUMS.minisig   # only a complete, verified signature is published
+          cat dist/SHA256SUMS.minisig
+      - name: warn when unsigned
+        if: steps.sign.outcome != 'success'
+        run: |
+          rm -f dist/SHA256SUMS.minisig
+          echo "::warning::This release is published WITHOUT a minisign signature (no MINISIGN_SECRET_KEY secret, or signing failed). Installs with minisign and a baked-in key will refuse it."
       - uses: softprops/action-gh-release@v2
         with:
+          # SHA256SUMS* also picks up SHA256SUMS.minisig when the release was signed.
           files: |
             dist/shedu_linux_amd64
             dist/shedu_linux_arm64
-            dist/SHA256SUMS
+            dist/SHA256SUMS*
           generate_release_notes: true

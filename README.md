@@ -10,6 +10,13 @@ Hebrew or English, when something needs your attention.
 curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/install.sh | sudo bash
 ```
 
+With the optional [Shedu Cloud](#shedu-cloud-optional) dashboard instead of your own Telegram bot
+(the token comes from **Add a server** in the dashboard):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/install.sh | sudo bash -s -- --cloud <token>
+```
+
 ## Who it is for
 
 **Anyone who runs their own Linux server (a VPS) without a security person.** The server is yours,
@@ -44,6 +51,20 @@ server of yours to watch, and the platform secures that layer.
 One dial if it is too quiet or too noisy, in `/etc/shedu/guard.conf`:
 `SENSITIVITY=low|normal|high` (default `normal`). You set how noisy Shedu is, not what is safe.
 
+## Shedu Cloud (optional)
+
+[app.getshedu.com](https://app.getshedu.com) shows all your servers in one place: score,
+findings with their fix commands, recent alerts, and "server went silent" when an agent stops
+reporting. Alerts arrive by email and from the official Telegram bot, with a short
+plain-language explanation written by Claude for that server. Sign-in is a link by email; there
+are no passwords.
+
+- Connect a server you already run: `sudo shedu enroll <token> && sudo systemctl restart shedu`.
+- Disconnect: `sudo shedu enroll --off && sudo systemctl restart shedu`.
+- The agent stays open source and works the same without the cloud. Exactly what it sends is
+  the public schema in [`pkg/cloudapi`](pkg/cloudapi); the connection is outbound only and the
+  cloud can never run anything on your server. Details: [SECURITY.md](SECURITY.md).
+
 ## Try it without installing
 
 ```bash
@@ -56,16 +77,26 @@ sudo ./bin/shedu check --json
 ## Trust
 
 - Single static Go binary, standard library only. Read every line.
-- Report-only: the agent never changes the host. It writes only to `/var/lib/shedu`.
+- Report-only: the agent never changes the host. It writes only to `/var/lib/shedu`
+  (and `shedu enroll` to its own config file).
 - **What leaves the server:** only the Telegram messages you configured, sent to
-  `api.telegram.org` over TLS. No telemetry, no analytics, no third parties.
+  `api.telegram.org` over TLS, and, if you enroll the server in Shedu Cloud, the reports listed
+  in [SECURITY.md](SECURITY.md) to `api.getshedu.com`. No telemetry, no analytics, no third parties.
+- **Verifiable releases:** reproducible builds and `SHA256SUMS` checked by the installer (how to
+  rebuild and compare: [SECURITY.md](SECURITY.md)). Releases are not signed with minisign yet;
+  the public key will be published here with the first signed release. Release public key
+  (minisign): `REPLACE_WITH_MINISIGN_PUBLIC_KEY` (placeholder). To check a signed release by hand:
+
+  ```bash
+  minisign -Vm SHA256SUMS -x SHA256SUMS.minisig -P <the key above> && sha256sum -c --ignore-missing SHA256SUMS
+  ```
 - Runs under systemd with `ProtectSystem=strict`, `NoNewPrivileges` and a 64 MB memory cap.
 - Found a problem? See [SECURITY.md](SECURITY.md).
 
 ## Status
 
-Phase 1 (the agent) and phase 2 (behaviour watch) are implemented. A central dashboard and
-more are planned.
+Phase 1 (the agent) and phase 2 (behaviour watch) are released. Phase 3 (Shedu Cloud: the
+dashboard, email and Telegram through the cloud, AI explanations) is in its acceptance test.
 
 ## License
 

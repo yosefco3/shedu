@@ -11,7 +11,34 @@
 #   --binary PATH      install this binary instead of downloading a release (dev)
 #   --upgrade          replace the binary and restart, keep config
 #   --yes              never ask; skip Telegram if not given
+#   --help             show this help
 set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Shedu installer: one command, zero configuration.
+
+  curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/install.sh | sudo bash
+  curl -fsSL https://raw.githubusercontent.com/yosefco3/shedu/main/packaging/install.sh | sudo bash -s -- --cloud <token>
+
+Options (all optional):
+  --cloud TOKEN    connect this server to Shedu Cloud with a one-time token from the
+                   dashboard (Add a server). Alerts then come from the cloud, so Telegram
+                   is not asked for. Without --cloud nothing is ever sent to the cloud.
+  --url URL        cloud API URL for --cloud (default https://api.getshedu.com)
+  --token TOKEN    Telegram bot token for direct alerts (else asked, unless --cloud)
+  --chat-id ID     Telegram chat id (else detected from your first message to the bot)
+  --lang he|en     language of the alerts (default he); terminal output is always English
+  --binary PATH    install this binary instead of downloading a release (development)
+  --upgrade        replace the binary and restart the service; keeps the configuration
+  --yes            never ask; skip Telegram if no token is given
+  --help           show this help
+
+Release downloads are checked against SHA256SUMS (not with --binary). When minisign is
+installed and this script carries the release public key, SHA256SUMS must also carry a
+valid signature.
+USAGE
+}
 
 REPO="yosefco3/shedu"
 BIN=/usr/local/bin/shedu
@@ -19,6 +46,11 @@ CONF_DIR=/etc/shedu
 CONF=$CONF_DIR/guard.conf
 STATE_DIR=/var/lib/shedu
 UNIT=/etc/systemd/system/shedu.service
+
+# Release signing key (minisign): the second line of minisign.pub, which starts with "RW".
+# Until a real key is set here, downloads are checked with SHA256SUMS only. Keep it identical
+# to the key in README.md. Edit only this one assignment.
+MINISIGN_PUBKEY="REPLACE_WITH_MINISIGN_PUBLIC_KEY"
 
 TOKEN=""; CHAT_ID=""; LANG_OPT="he"; BINARY=""; UPGRADE=0; YES=0; CLOUD_TOKEN=""; CLOUD_URL=""
 while [ $# -gt 0 ]; do
@@ -31,6 +63,7 @@ while [ $# -gt 0 ]; do
     --binary) BINARY="$2"; shift 2;;
     --upgrade) UPGRADE=1; shift;;
     --yes) YES=1; shift;;
+    -h|--help) usage; exit 0;;
     *) echo "unknown option: $1" >&2; exit 2;;
   esac
 done
@@ -66,10 +99,25 @@ install_binary() {
   say "⬇ מוריד את Shedu ($arch)..." "⬇ Downloading Shedu ($arch)..."
   curl -fsSL "$base/shedu_linux_$arch" -o "$tmp/shedu"
   curl -fsSL "$base/SHA256SUMS" -o "$tmp/SHA256SUMS"
+  verify_signature "$tmp" "$base"
   (cd "$tmp" && mv shedu "shedu_linux_$arch" && sha256sum -c --ignore-missing SHA256SUMS >/dev/null) \
     || die "checksum mismatch — download aborted"
   install -m 0755 "$tmp/shedu_linux_$arch" "$BIN"
   rm -rf "$tmp"
+}
+
+# verify_signature DIR BASE_URL: with a real public key and minisign installed, SHA256SUMS
+# must carry a valid signature (a missing one is an error too: it could be a downgrade).
+# Otherwise the SHA256SUMS check below is the only check, as before signing existed.
+verify_signature() {
+  local dir=$1 base=$2
+  case "$MINISIGN_PUBKEY" in RW*) ;; *) return 0;; esac   # no real key baked in yet
+  command -v minisign >/dev/null 2>&1 || return 0
+  curl -fsSL "$base/SHA256SUMS.minisig" -o "$dir/SHA256SUMS.minisig" \
+    || die "this release has no signature (SHA256SUMS.minisig) — download aborted"
+  minisign -Vq -P "$MINISIGN_PUBKEY" -m "$dir/SHA256SUMS" -x "$dir/SHA256SUMS.minisig" >/dev/null \
+    || die "signature check failed — download aborted"
+  say "✔ חתימת ההפצה אומתה (minisign)." "✔ Release signature verified (minisign)."
 }
 
 # --- unit (also rewritten on --upgrade, so hardening changes reach old installs) ---
