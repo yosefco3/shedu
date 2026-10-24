@@ -21,6 +21,18 @@ within 72 hours.
 - Writes: only `/var/lib/shedu` (its state) and its config file, `/etc/shedu/guard.conf` by
   default (through `install.sh`, and through `shedu enroll`, which adds or removes `CLOUD_URL`
   and `CLOUD_KEY` via a temporary file in the same folder that replaces the old one).
+- **One exception: its own binary, when you upgrade.** `sudo shedu upgrade` asks GitHub for
+  the latest release (not the cloud), downloads it into `/var/lib/shedu/update`, and installs
+  it only if `SHA256SUMS` carries
+  a valid minisign signature by the release key built into the agent, the signature names that
+  exact version (so an older release cannot be passed off as a newer one), and the binary's
+  sha256 matches. There is no fallback to sha256 alone: whoever could replace a binary on GitHub
+  could replace `SHA256SUMS` too. It stages the binary as `/usr/local/bin/shedu.new`, checks
+  that copy again, replaces `/usr/local/bin/shedu` with a rename (the old one is kept as
+  `/usr/local/bin/shedu.prev`), and, if the service was running, restarts it and puts the old
+  binary back if the service does not stay up on the new one within 30 seconds. Without
+  `--version` it only ever moves to a newer version. A build without the real release key
+  refuses to update itself. `shedu upgrade --check` only looks.
 - Sends: the Telegram messages you configured, to the Telegram Bot API over TLS, and, only
   if you enrolled the server, the reports described below to Shedu Cloud. Nothing else
   leaves the server. No telemetry, no third parties. Alerts can contain usernames, IP

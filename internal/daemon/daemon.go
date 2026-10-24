@@ -304,7 +304,8 @@ func (d *Daemon) heartbeat() cloudapi.Heartbeat {
 }
 
 // noteLatest records the newest release the cloud knows of. It is display-only: one log
-// line when it changes, and a line in the daily report. The agent never upgrades itself.
+// line when it changes, and a line in the daily report. The daemon never upgrades itself;
+// `shedu upgrade` does, when the admin runs it.
 func (d *Daemon) noteLatest(v string) {
 	d.latest.Lock()
 	changed := v != d.latest.version

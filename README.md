@@ -78,7 +78,10 @@ sudo ./bin/shedu check --json
 
 - Single static Go binary, standard library only. Read every line.
 - Report-only: the agent never changes the host. It writes only to `/var/lib/shedu`
-  (and `shedu enroll` to its own config file).
+  (and `shedu enroll` to its own config file). The one exception is its own binary:
+  `sudo shedu upgrade` installs the latest release only with a valid release signature, keeps
+  the previous binary and rolls back if the service does not start (`shedu upgrade --check`
+  only looks).
 - **What leaves the server:** only the Telegram messages you configured, sent to
   `api.telegram.org` over TLS, and, if you enroll the server in Shedu Cloud, the reports listed
   in [SECURITY.md](SECURITY.md) to `api.getshedu.com`. No telemetry, no analytics, no third parties.

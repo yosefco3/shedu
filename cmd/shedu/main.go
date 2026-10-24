@@ -4,6 +4,7 @@
 //	shedu run   [--config PATH]           background watcher (systemd service)
 //	shedu enroll <token> [--url URL]      connect this server to the Shedu cloud
 //	shedu enroll --off                    disconnect it again
+//	shedu upgrade [--check] [--version V] install the latest signed release
 //	shedu version
 package main
 
@@ -31,10 +32,11 @@ import (
 var version = "dev"
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: shedu <check|run|enroll|version> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: shedu <check|run|enroll|upgrade|version> [flags]")
 	fmt.Fprintln(os.Stderr, "  check   audit this server once and print a scored report")
 	fmt.Fprintln(os.Stderr, "  run     watch logins and accounts, send alerts (daemon)")
 	fmt.Fprintln(os.Stderr, "  enroll  connect this server to the Shedu cloud (enroll --off to disconnect)")
+	fmt.Fprintln(os.Stderr, "  upgrade install the latest signed release (upgrade --check only looks)")
 	fmt.Fprintln(os.Stderr, "  version print the version")
 }
 
@@ -119,6 +121,8 @@ func run(args []string) int {
 		return runDaemon(*cfgPath)
 	case "enroll":
 		return runEnroll(args[1:])
+	case "upgrade":
+		return runUpgrade(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "shedu: unknown command %q\n", args[0])
 		usage()
