@@ -32,6 +32,10 @@ const (
 	PreloadChanged Kind = "preload_changed" // ld.so.preload or LD_PRELOAD
 	MinerSuspected Kind = "miner_suspected" // sustained CPU + suspicious binary or pool port
 	ClamDetected   Kind = "clam_detected"   // the nightly ClamAV scan found infected files
+
+	// 03.2: the agent's own nightly update (Args: from, version, reason)
+	AgentUpdated      Kind = "agent_updated"
+	AgentUpdateFailed Kind = "agent_update_failed"
 )
 
 // Event is one security-relevant thing that happened on the host.

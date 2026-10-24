@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/yosefco3/shedu/internal/update"
 )
@@ -217,5 +218,113 @@ func TestUpgradeUsageAndRoot(t *testing.T) {
 	captureStdout(t, func() { code = run([]string{"upgrade", "--version", "v0.3.1", "--config", "/nonexistent"}) })
 	if code != 1 || len(dl.seen()) != 0 {
 		t.Errorf("not root: exit %d, downloads %q", code, dl.seen())
+	}
+}
+
+// --auto: the outcome is written for the daemon, which turns it into an alert.
+func TestUpgradeAutoInstallsAndWritesTheResult(t *testing.T) {
+	key, _ := os.ReadFile(filepath.Join(fixtures, "test.pub"))
+	gh, dl := githubLatest(t, "v0.3.1"), downloads(t)
+	dir, bin := seams(t, "v0.3.0", func(u *update.Updater) {
+		u.PublicKey, u.APIBase, u.DownloadBase, u.Arch = string(key), gh.srv.URL, dl.srv.URL, "amd64"
+		u.Run = func(_ context.Context, name string, args ...string) (string, error) {
+			switch {
+			case strings.HasSuffix(name, ".new"):
+				return "v0.3.1\n", nil
+			case name == "systemctl":
+				return "ActiveState=inactive\nMainPID=0\n", nil
+			}
+			t.Errorf("unexpected command %s %q", name, args)
+			return "", nil
+		}
+	})
+	var code int
+	out := captureStdout(t, func() { code = run([]string{"upgrade", "--auto", "--config", "/nonexistent"}) })
+	if code != 0 {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	want, _ := os.ReadFile(filepath.Join(fixtures, "shedu_linux_amd64"))
+	if content(t, bin) != string(want) {
+		t.Errorf("binary not replaced: %q", content(t, bin))
+	}
+	r, ok := update.TakeResult(dir)
+	if !ok || !r.OK || r.UpToDate || r.RolledBack || r.From != "v0.3.0" || r.Version != "v0.3.1" || r.Reason != "" || r.At.IsZero() {
+		t.Errorf("result = %+v, %v", r, ok)
+	}
+}
+
+// --auto never goes backwards, even when told which version: the result says "up to date".
+func TestUpgradeAutoRefusesANonNewerVersion(t *testing.T) {
+	key, _ := os.ReadFile(filepath.Join(fixtures, "test.pub"))
+	gh, dl := githubLatest(t, "v0.3.1"), downloads(t)
+	dir, bin := seams(t, "v0.3.1", func(u *update.Updater) {
+		u.PublicKey, u.APIBase, u.DownloadBase, u.Arch = string(key), gh.srv.URL, dl.srv.URL, "amd64"
+	})
+	var code int
+	out := captureStdout(t, func() {
+		code = run([]string{"upgrade", "--auto", "--version", "v0.3.0", "--config", "/nonexistent"})
+	})
+	if code != 0 || len(dl.seen()) != 0 || len(gh.seen()) != 0 || content(t, bin) != "OLD" {
+		t.Fatalf("exit %d, downloads %q, github %q, binary %q:\n%s", code, dl.seen(), gh.seen(), content(t, bin), out)
+	}
+	r, ok := update.TakeResult(dir)
+	if !ok || !r.OK || !r.UpToDate || r.From != "v0.3.1" {
+		t.Errorf("result = %+v, %v", r, ok)
+	}
+}
+
+func TestUpgradeAutoReportsAReleaseNotSignedByTheReleaseKey(t *testing.T) {
+	gh, dl := githubLatest(t, "v0.3.1"), downloads(t)
+	dir, bin := seams(t, "v0.3.0", func(u *update.Updater) { u.APIBase, u.DownloadBase, u.Arch = gh.srv.URL, dl.srv.URL, "amd64" })
+	var code int
+	captureStdout(t, func() { code = run([]string{"upgrade", "--auto", "--config", "/nonexistent"}) })
+	if code != 1 || content(t, bin) != "OLD" {
+		t.Fatalf("exit %d, binary %q", code, content(t, bin))
+	}
+	r, ok := update.TakeResult(dir)
+	if !ok || r.OK || r.UpToDate || r.Reason == "" || r.From != "v0.3.0" || r.Version != "v0.3.1" {
+		t.Errorf("result = %+v, %v", r, ok)
+	}
+}
+
+// Without --auto, or with --check, no result file is left behind.
+func TestUpgradeWithoutAutoWritesNoResult(t *testing.T) {
+	gh := githubLatest(t, "v0.3.1")
+	dir, _ := seams(t, "v0.3.1", func(u *update.Updater) { u.APIBase = gh.srv.URL })
+	captureStdout(t, func() { run([]string{"upgrade", "--check", "--auto", "--config", "/nonexistent"}) })
+	captureStdout(t, func() { run([]string{"upgrade", "--config", "/nonexistent"}) })
+	if _, err := os.Stat(update.ResultFile(dir)); !os.IsNotExist(err) {
+		t.Error("result.json must only be written by --auto without --check")
+	}
+}
+
+// A version that just failed is not retried by --auto within update.RetryAfter: the second
+// run downloads nothing and reports "skipped" (still exit 0, so the unit does not look failed).
+func TestUpgradeAutoSkipsAVersionThatJustFailed(t *testing.T) {
+	gh, dl := githubLatest(t, "v0.3.1"), downloads(t)
+	dir, bin := seams(t, "v0.3.0", func(u *update.Updater) { u.APIBase, u.DownloadBase, u.Arch = gh.srv.URL, dl.srv.URL, "amd64" })
+	var code int
+	captureStdout(t, func() { code = run([]string{"upgrade", "--auto", "--config", "/nonexistent"}) })
+	if code != 1 {
+		t.Fatalf("first run: exit %d, want 1", code)
+	}
+	if r, ok := update.TakeResult(dir); !ok || r.OK || r.Skipped {
+		t.Fatalf("first result = %+v, %v", r, ok)
+	}
+	if _, ok := update.RecentFailure(dir, "v0.3.1", time.Now()); !ok {
+		t.Fatal("the failure must be recorded")
+	}
+	before := len(dl.seen())
+	if before == 0 {
+		t.Fatal("the first run should have tried to download")
+	}
+
+	captureStdout(t, func() { code = run([]string{"upgrade", "--auto", "--config", "/nonexistent"}) })
+	if code != 0 || len(dl.seen()) != before || content(t, bin) != "OLD" {
+		t.Fatalf("second run: exit %d, downloads %q, binary %q", code, dl.seen(), content(t, bin))
+	}
+	r, ok := update.TakeResult(dir)
+	if !ok || !r.OK || !r.Skipped || r.UpToDate || r.Reason == "" || r.Version != "v0.3.1" || r.From != "v0.3.0" {
+		t.Errorf("second result = %+v, %v", r, ok)
 	}
 }

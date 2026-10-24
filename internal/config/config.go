@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/yosefco3/shedu/internal/i18n"
 )
@@ -27,6 +28,8 @@ type Config struct {
 	Hostname       string    // HOSTNAME override; default os.Hostname()
 	CloudURL       string    // CLOUD_URL, default https://api.getshedu.com
 	CloudKey       string    // CLOUD_KEY, written by `shedu enroll`; empty = cloud off
+	AutoUpdate     bool      // AUTO_UPDATE yes|no, default yes: install new signed releases at night
+	AutoUpdateAt   string    // AUTO_UPDATE_AT "HH:MM" or "now"; "" = a fixed minute 03:00-05:00 per server
 
 	Sensitivity Sensitivity // SENSITIVITY low|normal|high, default normal
 	Thresholds  Thresholds  // resolved from Sensitivity, then per-key overrides
@@ -37,7 +40,7 @@ type Config struct {
 func Defaults() Config {
 	host, _ := os.Hostname()
 	return Config{Lang: i18n.He, DailyReportAt: "08:00", BruteForceN: 5, StateDir: "/var/lib/shedu", Hostname: host,
-		CloudURL:    DefaultCloudURL,
+		CloudURL: DefaultCloudURL, AutoUpdate: true,
 		Sensitivity: Normal, Thresholds: ThresholdsFor(Normal)}
 }
 
@@ -99,6 +102,23 @@ func Parse(r io.Reader) (Config, error) {
 				return Config{}, fmt.Errorf("guard.conf line %d: BRUTE_FORCE_THRESHOLD must be a positive number", n)
 			}
 			c.BruteForceN = i
+		case "AUTO_UPDATE":
+			switch strings.ToLower(val) {
+			case "yes", "on", "true", "1":
+				c.AutoUpdate = true
+			case "no", "off", "false", "0":
+				c.AutoUpdate = false
+			default:
+				// Whoever wrote something here most likely wanted it off.
+				c.AutoUpdate = false
+				c.Warnings = append(c.Warnings, fmt.Sprintf("guard.conf line %d: AUTO_UPDATE %q is not yes or no; auto-update is off", n, val))
+			}
+		case "AUTO_UPDATE_AT":
+			if _, err := time.Parse("15:04", val); val != "" && val != "now" && err != nil {
+				c.Warnings = append(c.Warnings, fmt.Sprintf("guard.conf line %d: AUTO_UPDATE_AT %q is not HH:MM or now; using the nightly window", n, val))
+				val = ""
+			}
+			c.AutoUpdateAt = val
 		case "STATE_DIR":
 			c.StateDir = val
 		case "HOSTNAME":

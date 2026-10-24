@@ -173,3 +173,40 @@ func TestStateSaveLoad(t *testing.T) {
 		t.Error("corrupt file must be moved to .bad")
 	}
 }
+
+func TestAgentUpdatedAlertsAlways(t *testing.T) {
+	c := &clock{time.Date(2026, 10, 17, 3, 0, 0, 0, time.UTC)}
+	r, st := newRules(c)
+	ev := Event{Kind: AgentUpdated, Args: map[string]string{"from": "v0.3.0", "version": "v0.3.1"}}
+	for i := 0; i < 2; i++ {
+		a, ok := r.Feed(ev, st)
+		if !ok || a.ID != "agent.updated" || a.Severity != finding.Info || a.Fix != "" || a.Args["version"] != "v0.3.1" {
+			t.Fatalf("feed %d: %+v %v", i, a, ok)
+		}
+	}
+}
+
+func TestAgentUpdateFailedOncePer20Hours(t *testing.T) {
+	c := &clock{time.Date(2026, 10, 17, 3, 0, 0, 0, time.UTC)}
+	r, st := newRules(c)
+	ev := Event{Kind: AgentUpdateFailed, Args: map[string]string{"from": "v0.3.0", "version": "v0.3.1", "reason": "the service did not come up"}}
+	a, ok := r.Feed(ev, st)
+	if !ok || a.ID != "agent.update_failed" || a.Severity != finding.Medium || a.Fix != "sudo shedu upgrade" {
+		t.Fatalf("first failure must alert: %+v %v", a, ok)
+	}
+	if !strings.Contains(a.Telegram(i18n.En), "the service did not come up") {
+		t.Errorf("text lacks the reason: %q", a.Telegram(i18n.En))
+	}
+	c.add(time.Minute)
+	if _, ok := r.Feed(ev, st); ok {
+		t.Error("a second failure a minute later must not alert")
+	}
+	c.add(19 * time.Hour)
+	if _, ok := r.Feed(ev, st); ok {
+		t.Error("still inside 20h of the first alert")
+	}
+	c.add(2 * time.Hour)
+	if _, ok := r.Feed(ev, st); !ok {
+		t.Error("after 20h the next failure must alert again")
+	}
+}

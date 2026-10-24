@@ -18,7 +18,7 @@ var en = map[string]Msg{
 
 	"ports.db_public":  {"Your {{.service}} (port {{.port}}) is open to {{if .lan}}your whole local network{{else}}the whole internet{{end}}", "Databases and caches should only talk to the applications on this server. Exposed, they are found within minutes and are often unprotected by default. Bind it to 127.0.0.1 or block the port."},
 	"ports.dev_public": {"A development-style port ({{.port}}) is open to the internet", "Ports like 3000 or 8080 usually run test servers without authentication. Make sure that is intended."},
-	"ports.summary":    {"{{plural .count \"1 port reachable from the internet\" \"%s ports reachable from the internet\"}}: {{.list}}", "This is what the world sees. Everything listed here should be something you deliberately offer."},
+	"ports.summary":    {"{{plural .count \"1 port reachable from the internet\" \"%s ports reachable from the internet\"}}{{if .list}}: {{.list}}{{end}}", "This is what the world sees. Everything listed here should be something you deliberately offer."},
 
 	"firewall.none":             {"No firewall is filtering incoming traffic", "Every service on this server is reachable by anyone. A firewall lets only what you choose through."},
 	"firewall.input_accept_all": {"A firewall exists but blocks nothing", "The rules are in place but the default is to let everything in. Enable ufw or add a drop policy."},
@@ -69,6 +69,8 @@ var en = map[string]Msg{
 	"keys.weak":                    {"Weak SSH key for {{.user}}: {{.type}} {{.bits}} bits {{.comment}}", "Keys this short can be broken with enough computing power. Create a modern key (ssh-keygen -t ed25519), add it, then delete this one."},
 	"keys.anonymous":               {"{{plural .count \"1 SSH key has no name\" \"%s SSH keys have no name\"}}", "A key without a comment cannot be traced to a person or a laptop. When you are unsure whose it is, that is a reason to remove it."},
 	"keys.need_root":               {"Key inventory was partial", "Run shedu with sudo to list the keys of every user."},
+	"agent.updated":                {"Shedu agent updated to {{.version}}", "The agent installed the new signed release {{.version}} (it was {{.from}}) and restarted. Nothing else on the server changed."},
+	"agent.update_failed":          {"Automatic update to {{if .version}}{{.version}}{{else}}the latest release{{end}} failed", "The nightly update did not finish: {{.reason}}. The previous version, {{.from}}, stays installed. You can try it by hand with the command below, or turn nightly updates off with AUTO_UPDATE=no in /etc/shedu/guard.conf."},
 	"alert.clamav":                 {"🦠 ClamAV found {{plural .count \"1 infected file\" \"%s infected files\"}}", "The nightly scan matched known malware:\n{{.list}}\nShedu changed nothing. Look at each file; the fix moves {{plural .count \"it\" \"them\"}} to a locked folder so nothing can run them."},
 	"firewall.docker_bypass":       {"Docker opens ports past your firewall: {{.ports}}", "ufw is on, so it looks closed, but Docker writes its own rules ahead of ufw. Containers published on these ports are reachable from outside whatever ufw says. Publish them on 127.0.0.1 unless the world should reach them."},
 }

@@ -11,6 +11,7 @@
 #   --binary PATH      install this binary instead of downloading a release (dev)
 #   --version TAG      install this release (vX.Y.Z or vX.Y.Z-rcN) instead of the latest
 #   --upgrade          replace the binary and restart, keep config
+#   --no-auto-update   do not install new signed releases automatically at night (AUTO_UPDATE=no)
 #   --yes              never ask; skip Telegram if not given
 #   --help             show this help
 set -euo pipefail
@@ -34,6 +35,7 @@ Options (all optional):
   --version TAG    install this release (vX.Y.Z, or a pre-release such as vX.Y.Z-rc1)
                    instead of the latest one
   --upgrade        replace the binary and restart the service; keeps the configuration
+  --no-auto-update do not install new signed releases automatically at night (AUTO_UPDATE=no)
   --yes            never ask; skip Telegram if no token is given
   --help           show this help
 
@@ -67,7 +69,7 @@ UNSIGNED_RELEASES="v0.3.0"
 RELEASES="https://github.com/$REPO/releases"
 MINISIGN_BIN=minisign   # tests point this elsewhere
 
-TOKEN=""; CHAT_ID=""; LANG_OPT="he"; BINARY=""; VERSION=""; UPGRADE=0; YES=0; CLOUD_TOKEN=""; CLOUD_URL=""
+TOKEN=""; CHAT_ID=""; LANG_OPT="he"; BINARY=""; VERSION=""; UPGRADE=0; YES=0; CLOUD_TOKEN=""; CLOUD_URL=""; AUTO_UPDATE=yes
 while [ $# -gt 0 ]; do
   case "$1" in
     --token) TOKEN="$2"; shift 2;;
@@ -78,6 +80,7 @@ while [ $# -gt 0 ]; do
     --binary) BINARY="$2"; shift 2;;
     --version) VERSION="$2"; shift 2;;
     --upgrade) UPGRADE=1; shift;;
+    --no-auto-update) AUTO_UPDATE=no; shift;;
     --yes) YES=1; shift;;
     -h|--help) usage; exit 0;;
     *) echo "unknown option: $1" >&2; exit 2;;
@@ -170,6 +173,41 @@ verify_signature() {
   say "✔ חתימת ההפצה אומתה (minisign)." "✔ Release signature verified (minisign)."
 }
 
+# knows_auto_update: does the installed binary understand AUTO_UPDATE (v0.3.1 and later, or
+# a development build)? Older ones refuse a guard.conf with a key they don't know.
+knows_auto_update() {
+  local v
+  v=$("$BIN" version 2>/dev/null) || return 1
+  [[ $v =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]] || return 0   # "dev": built from current source
+  version_at_least "$v" v0.3.1
+}
+
+# set_auto_update CONF VALUE: write AUTO_UPDATE=VALUE into an existing config.
+set_auto_update() {
+  if grep -q '^AUTO_UPDATE=' "$1"; then
+    sed -i "s/^AUTO_UPDATE=.*/AUTO_UPDATE=$2/" "$1"
+  else
+    printf '%s\n' "# Nightly self-update to new signed releases (yes/no). Off: AUTO_UPDATE=no" "AUTO_UPDATE=$2" >>"$1"
+  fi
+}
+
+# auto_update_note: for an existing config after installing a binary, apply --no-auto-update or
+# say once that nightly updates are now on (they default to on from v0.3.1).
+auto_update_note() {
+  [ -f "$CONF" ] || return 0
+  if ! knows_auto_update; then
+    [ "$AUTO_UPDATE" = no ] && say "ℹ לגרסה הזו אין עדכון אוטומטי, אין מה לכבות." "ℹ This version has no auto-update; nothing to turn off."
+    return 0
+  fi
+  if [ "$AUTO_UPDATE" = no ]; then
+    set_auto_update "$CONF" no
+    say "✔ עדכון אוטומטי כבוי (AUTO_UPDATE=no ב-$CONF)." "✔ Auto-update is off (AUTO_UPDATE=no in $CONF)."
+  elif ! grep -q '^AUTO_UPDATE=' "$CONF"; then
+    say "ℹ מעכשיו Shedu מתעדכן לבד בלילה, רק לגרסאות חתומות. לכיבוי: AUTO_UPDATE=no ב-$CONF" \
+        "ℹ Shedu now updates itself at night, to signed releases only. To turn it off: AUTO_UPDATE=no in $CONF"
+  fi
+}
+
 # Sourced by packaging/install_test.sh with SHEDU_INSTALL_LIB=1: functions only.
 [ "${SHEDU_INSTALL_LIB:-}" = 1 ] && return 0
 
@@ -211,6 +249,7 @@ if [ "$UPGRADE" -eq 1 ]; then
   OLD=$("$BIN" version 2>/dev/null || echo none)
   install_binary
   NEW=$("$BIN" version)
+  auto_update_note
   if [ "$HAS_SYSTEMD" -eq 1 ] && [ -f "$UNIT" ]; then
     write_unit
     systemctl daemon-reload
@@ -252,6 +291,10 @@ if [ ! -f "$CONF" ]; then
     echo "LANG=$LANG_OPT"
     echo "DAILY_REPORT_AT=08:00"
     echo "BRUTE_FORCE_THRESHOLD=5"
+    if knows_auto_update; then
+      echo "# Nightly self-update to new signed releases (yes/no). Off: AUTO_UPDATE=no"
+      echo "AUTO_UPDATE=$AUTO_UPDATE"
+    fi
     cat <<'TUNING'
 
 # How noisy Shedu is: low | normal | high. Everything below follows this dial.
@@ -266,6 +309,7 @@ if [ ! -f "$CONF" ]; then
 # OUTBOUND_ALERTS=beacon    # off | beacon | all (high: all)
 # SECRET_AUDIT=off          # on = live secret-read alerts, needs auditd
 # CLAMAV_AT=03:00           # nightly ClamAV scan if installed; empty disables
+# AUTO_UPDATE_AT=03:30      # when to check for an update (HH:MM local; default: a fixed minute 03:00-05:00 per server)
 TUNING
     [ -n "$TOKEN" ] && echo "TELEGRAM_TOKEN=\"$TOKEN\""
     [ -n "$CHAT_ID" ] && echo "TELEGRAM_CHAT_ID=\"$CHAT_ID\""
@@ -280,6 +324,8 @@ TUNING
     say "ℹ טלגרם לא הוגדר. אפשר להוסיף TELEGRAM_TOKEN ו-TELEGRAM_CHAT_ID ל-$CONF בכל רגע." \
         "ℹ Telegram not configured. Add TELEGRAM_TOKEN and TELEGRAM_CHAT_ID to $CONF any time."
   fi
+else
+  auto_update_note   # re-install over an existing config
 fi
 
 # --- cloud (before the service starts, so its first run already reports) ----

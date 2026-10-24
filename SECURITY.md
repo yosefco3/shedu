@@ -21,25 +21,51 @@ within 72 hours.
 - Writes: only `/var/lib/shedu` (its state) and its config file, `/etc/shedu/guard.conf` by
   default (through `install.sh`, and through `shedu enroll`, which adds or removes `CLOUD_URL`
   and `CLOUD_KEY` via a temporary file in the same folder that replaces the old one).
-- **One exception: its own binary, when you upgrade.** `sudo shedu upgrade` asks GitHub for
-  the latest release (not the cloud), downloads it into `/var/lib/shedu/update`, and installs
-  it only if `SHA256SUMS` carries
-  a valid minisign signature by the release key built into the agent, the signature names that
-  exact version (so an older release cannot be passed off as a newer one), and the binary's
-  sha256 matches. There is no fallback to sha256 alone: whoever could replace a binary on GitHub
-  could replace `SHA256SUMS` too. It stages the binary as `/usr/local/bin/shedu.new`, checks
-  that copy again, replaces `/usr/local/bin/shedu` with a rename (the old one is kept as
-  `/usr/local/bin/shedu.prev`), and, if the service was running, restarts it and puts the old
-  binary back if the service does not stay up on the new one within 30 seconds. Without
-  `--version` it only ever moves to a newer version. A build without the real release key
-  refuses to update itself. `shedu upgrade --check` only looks.
+- **One exception: its own binary.** The agent replaces `/usr/local/bin/shedu` with a newer
+  release signed by the release key, at night or when you run `sudo shedu upgrade`. See
+  "How updates work" below.
 - Sends: the Telegram messages you configured, to the Telegram Bot API over TLS, and, only
-  if you enrolled the server, the reports described below to Shedu Cloud. Nothing else
-  leaves the server. No telemetry, no third parties. Alerts can contain usernames, IP
+  if you enrolled the server, the reports described below to Shedu Cloud. For updates it
+  downloads releases from GitHub (`github.com` and its download host), and a server that is
+  not enrolled asks the GitHub API (`api.github.com`) once a night which release is the latest;
+  these requests carry no data about the server beyond what any HTTPS download does. Nothing
+  else leaves the server. No telemetry, no third parties. Alerts can contain usernames, IP
   addresses, file paths, process names and command lines from your server, so treat the
   Telegram chat and your cloud account as private.
 - Never modifies firewall rules, users, keys, services or packages. Every "fix" is a
   command printed for you to run.
+
+**How updates work**
+
+- **What is installed:** only a plain `vX.Y.Z` release that is newer than the running one (never
+  a pre-release, never a downgrade), and only if `SHA256SUMS` carries a valid minisign signature
+  by the release key built into the agent, the signature names that exact version, and the
+  binary's sha256 matches. There is no fallback to sha256 alone: whoever could replace a binary on
+  GitHub could replace `SHA256SUMS` too. The agent checks the signature itself, without the
+  minisign tool.
+- **When:** every night at a fixed minute between 03:00 and 05:00 local time, different for
+  each server (`AUTO_UPDATE_AT=HH:MM` in `/etc/shedu/guard.conf` picks another time). An enrolled
+  server installs the version Shedu Cloud names as the latest, so a release can be rolled out
+  gradually (while the cloud is unreachable or names no newer version, it waits); a server that is
+  not enrolled asks GitHub. The cloud can only name a version: the
+  agent still installs it only if it is newer and signed, so the cloud cannot push a binary or a
+  downgrade.
+- **How:** the service runs sandboxed (`ProtectSystem=strict`, it can write only
+  `/var/lib/shedu`), so it does not replace itself. It starts `shedu upgrade --auto` as a separate,
+  short-lived systemd unit (`systemd-run --unit=shedu-update`), outside that sandbox. That unit
+  downloads into `/var/lib/shedu/update`, verifies, stages the binary as
+  `/usr/local/bin/shedu.new` and checks that copy again, keeps the old binary as
+  `/usr/local/bin/shedu.prev`, swaps the new one in with a rename (there is never a moment without
+  a binary), and restarts the service. If the service does not stay up on the new version within
+  30 seconds, the old binary is put back and the service restarted on it.
+- **You are told:** "agent updated to vX.Y.Z" (`agent.updated`), or "automatic update failed"
+  with the reason and the command to try by hand (`agent.update_failed`, about once a day at most), by
+  Telegram or through Shedu Cloud.
+- **Turning it off:** `AUTO_UPDATE=no` in `/etc/shedu/guard.conf`, then
+  `sudo systemctl restart shedu` (the journal then says `auto-update: off`), or install with
+  `install.sh --no-auto-update`. `sudo shedu upgrade` still works by hand; `shedu upgrade --check`
+  only looks.
+- **Checking by hand:** the release key and the command are under "Release signature" below.
 
 **What the agent sends to Shedu Cloud (optional)**
 
@@ -72,7 +98,9 @@ alerts by email and by the official Telegram bot. It is off unless you enroll th
   localhost, so the key never travels in clear text. Nothing connects to the server. Apart
   from the address and key returned once at enrollment (which `shedu enroll` stores), the
   cloud's answers are display-only data (for example "a newer version exists"), and the
-  agent never acts on them. **The cloud can never execute anything on your server**: there is
+  agent never acts on them, except that the latest version it names is the one the nightly
+  update installs, if that version is newer and signed (see "How updates work").
+  **The cloud can never execute anything on your server**: there is
   no code path for it. As an extra guard, a test (`TestNoCommandFields`, part of `go test`,
   which every release runs) fails if an answer type gains a field whose name looks like an
   instruction. A break-in at the cloud gives no control over enrolled servers.

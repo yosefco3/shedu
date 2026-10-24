@@ -80,10 +80,12 @@ sudo ./bin/shedu check --json
 
 - Single static Go binary, standard library only. Read every line.
 - Report-only: the agent never changes the host. It writes only to `/var/lib/shedu`
-  (and `shedu enroll` to its own config file). The one exception is its own binary:
-  `sudo shedu upgrade` installs the latest release only with a valid release signature, keeps
-  the previous binary and rolls back if the service does not start (`shedu upgrade --check`
-  only looks).
+  (and `shedu enroll` to its own config file). The one exception is its own binary.
+- **How updates work:** every night, at a fixed minute between 03:00 and 05:00, the agent installs
+  a newer release, and only one signed with the release key below. It keeps the previous binary
+  and puts it back if the service does not start. You get a message either way. Turn it off with
+  `AUTO_UPDATE=no` in `/etc/shedu/guard.conf` (or `install.sh --no-auto-update`). Update by hand
+  with `sudo shedu upgrade`; `shedu upgrade --check` only looks. Details: [SECURITY.md](SECURITY.md).
 - **What leaves the server:** only the Telegram messages you configured, sent to
   `api.telegram.org` over TLS, and, if you enroll the server in Shedu Cloud, the reports listed
   in [SECURITY.md](SECURITY.md) to `api.getshedu.com`. No telemetry, no analytics, no third parties.

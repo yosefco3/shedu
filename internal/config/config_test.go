@@ -68,3 +68,26 @@ func TestCloudKeys(t *testing.T) {
 		t.Error("cloud must be off by default")
 	}
 }
+
+func TestAutoUpdateKeys(t *testing.T) {
+	c, err := Parse(strings.NewReader(""))
+	if err != nil || !c.AutoUpdate || c.AutoUpdateAt != "" {
+		t.Fatalf("default: on, nightly window; got %v %q %v", c.AutoUpdate, c.AutoUpdateAt, err)
+	}
+	for in, want := range map[string]bool{"no": false, "NO": false, "off": false, "yes": true, "On": true} {
+		c, _ := Parse(strings.NewReader("AUTO_UPDATE=" + in + "\n"))
+		if c.AutoUpdate != want || len(c.Warnings) != 0 {
+			t.Errorf("AUTO_UPDATE=%s: %v %q", in, c.AutoUpdate, c.Warnings)
+		}
+	}
+	c, _ = Parse(strings.NewReader("AUTO_UPDATE=nope\n"))
+	if c.AutoUpdate || len(c.Warnings) != 1 {
+		t.Errorf("unclear value must turn it off with a warning: %v %q", c.AutoUpdate, c.Warnings)
+	}
+	for in, want := range map[string]string{"now": "now", "03:30": "03:30", "25:00": "", "soon": ""} {
+		c, _ := Parse(strings.NewReader("AUTO_UPDATE_AT=" + in + "\n"))
+		if c.AutoUpdateAt != want || (want == "") != (len(c.Warnings) == 1) {
+			t.Errorf("AUTO_UPDATE_AT=%s: %q %q", in, c.AutoUpdateAt, c.Warnings)
+		}
+	}
+}

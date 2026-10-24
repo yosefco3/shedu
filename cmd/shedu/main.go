@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/yosefco3/shedu/internal/checks"
@@ -171,6 +172,14 @@ func runDaemon(cfgPath string) int {
 	}
 	if cloudClient != nil {
 		d.Cloud = cloudClient
+	}
+	if cfg.AutoUpdate {
+		// The machine id spreads servers that share a hostname ("ubuntu") over the window.
+		mid, _ := os.ReadFile("/etc/machine-id")
+		d.AutoUpdate = &daemon.AutoUpdate{At: cfg.AutoUpdateAt, Host: cfg.Hostname + "|" + strings.TrimSpace(string(mid))}
+		logger.Println("shedu: " + d.AutoUpdate.Describe())
+	} else {
+		logger.Println("shedu: auto-update: off")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

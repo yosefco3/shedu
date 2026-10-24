@@ -111,7 +111,9 @@ type Heartbeat struct {
 	Lang           string    `json:"lang"`
 }
 
-// HeartbeatResponse is display-only: the agent logs it, it never acts on it.
+// HeartbeatResponse names the newest release. The agent logs it, and the nightly update
+// (AUTO_UPDATE) installs that version only if it is newer than the running one and carries a
+// valid release signature: the cloud can name a version, never supply or force a binary.
 type HeartbeatResponse struct {
 	LatestVersion string `json:"latest_version"`
 }

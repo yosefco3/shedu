@@ -127,6 +127,19 @@ func (r *Rules) Feed(ev Event, st *State) (Alert, bool) {
 		}
 		return r.emit(st, now, Alert{ID: "alert.preload_env", Severity: finding.High, Key: "preload:" + ev.Args["pid"], Args: ev.Args,
 			Fix: PreloadEnvFix(ev.Args["pid"])})
+	case AgentUpdated:
+		return r.direct(now, Alert{ID: "agent.updated", Severity: finding.Info, Args: ev.Args})
+	case AgentUpdateFailed:
+		// At most one a day: the update is tried once a night anyway, so this only stops a
+		// restart loop (AUTO_UPDATE_AT=now) from repeating the same alert.
+		a := Alert{ID: "agent.update_failed", Severity: finding.Medium, Key: "agent.update_failed", Args: ev.Args,
+			Fix: "sudo shedu upgrade"}
+		if last, ok := st.LastAlerts[a.Key]; ok && now.Sub(last) < 20*time.Hour {
+			return Alert{}, false
+		}
+		st.LastAlerts[a.Key] = now
+		a.Time = now
+		return a, true
 	case ClamDetected:
 		return r.direct(now, Alert{ID: "alert.clamav", Severity: finding.High, Args: ev.Args,
 			Fix: "sudo mkdir -p /root/quarantine && sudo mv " + ev.Args["paths"] + " /root/quarantine/ && sudo chmod -R 000 /root/quarantine"})

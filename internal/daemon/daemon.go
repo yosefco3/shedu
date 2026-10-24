@@ -41,6 +41,13 @@ type Daemon struct {
 	RunCheck func(ctx context.Context) finding.Report
 	Log      *log.Logger
 	Version  string // agent version, carried in cloud reports
+	// AutoUpdate, when set, installs newer signed releases at night (AUTO_UPDATE=yes).
+	AutoUpdate *AutoUpdate
+	upd        struct { // the upgrade started last, until its result arrives
+		sync.Mutex
+		started time.Time
+		target  string
+	}
 
 	// Cloud is set when the agent is enrolled. The daemon then sends a heartbeat every
 	// HeartbeatEvery (default 5m) and a cloud-only report at start-up. Alerts reach the
@@ -108,6 +115,11 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 
 	d.started = d.Clock()
+	if d.AutoUpdate != nil {
+		wg.Add(2)
+		go func() { defer wg.Done(); d.autoUpdates(ctx, events) }()
+		go func() { defer wg.Done(); d.updateResults(ctx, events) }()
+	}
 	if d.Cloud != nil {
 		wg.Add(1)
 		go func() { defer wg.Done(); d.heartbeats(ctx) }()
@@ -304,8 +316,8 @@ func (d *Daemon) heartbeat() cloudapi.Heartbeat {
 }
 
 // noteLatest records the newest release the cloud knows of. It is display-only: one log
-// line when it changes, and a line in the daily report. The daemon never upgrades itself;
-// `shedu upgrade` does, when the admin runs it.
+// line when it changes, and a line in the daily report. The nightly update (autoupdate.go)
+// installs it if it is newer and signed.
 func (d *Daemon) noteLatest(v string) {
 	d.latest.Lock()
 	changed := v != d.latest.version

@@ -82,5 +82,38 @@ cmp_case v0.3.1 v0.3.1 0; cmp_case v0.3.0 v0.3.1 1; cmp_case v0.3.1-rc1 v0.3.1 0
 cmp_case v1.0.0 v0.3.1 0; cmp_case v0.2.9 v0.3.1 1; cmp_case v0.3.2 v0.3.1 0; cmp_case v0.4.0 v0.3.10 0
 cmp_case v0.3.0-rc1 v0.3.1 1; cmp_case v0.3.10 v0.3.9 0; cmp_case v0.3.9 v0.3.10 1
 
+# --no-auto-update sets AUTO_UPDATE=no; without it the default is yes
+auto_case() { # want(yes|no) [install.sh args]
+  local want=$1 got; shift
+  got=$(SHEDU_INSTALL_LIB=1 bash -c 'source packaging/install.sh "$@"; echo "$AUTO_UPDATE"' _ "$@")
+  if [ "$got" = "$want" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "FAIL  AUTO_UPDATE with [$*] = '$got', want '$want'"; fi
+}
+auto_case no --no-auto-update; auto_case yes
+
+# knows_auto_update: only binaries from v0.3.1 on (or dev builds) get the AUTO_UPDATE key,
+# because older ones refuse a config key they don't know.
+knows_case() { # version-printed want(0|1)
+  local bin="$TMP/fakebin-$RANDOM" got
+  printf '#!/bin/sh\necho %s\n' "$1" >"$bin"; chmod +x "$bin"
+  SHEDU_INSTALL_LIB=1 bash -c 'a=("$@"); set --; source packaging/install.sh; BIN=${a[0]}; knows_auto_update' _ "$bin"; got=$?
+  if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "FAIL  knows_auto_update for $1 = $got, want $2"; fi
+}
+knows_case v0.3.0 1; knows_case v0.3.0-5-gabc1234 1; knows_case v0.3.1 0; knows_case v0.3.1-rc1 0; knows_case v1.0.0 0; knows_case dev 0
+
+# auto_update_note on an existing config: --no-auto-update is applied, else a one-time notice.
+note_case() { # name binary-version flag existing-conf-line want-in-conf want-in-output
+  local bin="$TMP/fakebin-$RANDOM" conf="$TMP/conf-$RANDOM" out
+  printf '#!/bin/sh\necho %s\n' "$2" >"$bin"; chmod +x "$bin"
+  printf 'LANG=he\n%s\n' "$4" >"$conf"
+  out=$(SHEDU_INSTALL_LIB=1 bash -c 'a=("$@"); set --; source packaging/install.sh; BIN=${a[0]} CONF=${a[1]} AUTO_UPDATE=${a[2]}; auto_update_note' _ "$bin" "$conf" "$3" 2>&1)
+  if grep -qxF -- "$5" "$conf" && [[ $out == *"$6"* ]]; then PASS=$((PASS+1)); echo "ok    $1"
+  else FAIL=$((FAIL+1)); echo "FAIL  $1: conf:"; sed 's/^/        /' "$conf"; echo "      output: $out"; fi
+}
+note_case "existing conf, --no-auto-update: replaced"  v0.3.1 no  "AUTO_UPDATE=yes" "AUTO_UPDATE=no" "Auto-update is off"
+note_case "existing conf, --no-auto-update: appended"  v0.3.1 no  "DAILY_REPORT_AT=08:00" "AUTO_UPDATE=no" "Auto-update is off"
+note_case "existing conf, upgrade: notice once"        v0.3.1 yes "DAILY_REPORT_AT=08:00" "DAILY_REPORT_AT=08:00" "updates itself at night"
+note_case "existing conf, key set: no notice"          v0.3.1 yes "AUTO_UPDATE=yes" "AUTO_UPDATE=yes" ""
+note_case "old binary: key never written"              v0.3.0 no  "DAILY_REPORT_AT=08:00" "DAILY_REPORT_AT=08:00" "has no auto-update"
+
 echo "$PASS passed, $FAIL failed, $SKIP skipped"
 [ "$FAIL" -eq 0 ]

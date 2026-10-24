@@ -166,6 +166,52 @@ func TestPluralMessages(t *testing.T) {
 	}
 }
 
+// The port summary has no dangling ":" when there is no list (a host with nothing exposed).
+func TestPortsSummaryWithoutList(t *testing.T) {
+	cases := []struct {
+		lang        Lang
+		count, list string
+		want        string
+	}{
+		{En, "0", "", "0 ports reachable from the internet"},
+		{He, "0", "", "0 פורטים נגישים מהאינטרנט"},
+		{En, "2", "22/tcp, 80/tcp", "2 ports reachable from the internet: 22/tcp, 80/tcp"},
+		{He, "2", "22/tcp, 80/tcp", "2 פורטים נגישים מהאינטרנט: 22/tcp, 80/tcp"},
+	}
+	for _, c := range cases {
+		args := map[string]string{"count": c.count}
+		if c.list != "" {
+			args["list"] = c.list
+		}
+		if got := Render(c.lang, "ports.summary", args).Title; got != c.want {
+			t.Errorf("%s count=%s list=%q: %q, want %q", c.lang, c.count, c.list, got, c.want)
+		}
+	}
+}
+
+func TestAgentUpdateMessages(t *testing.T) {
+	args := map[string]string{"version": "v0.3.1", "from": "v0.3.0", "reason": "boom"}
+	for _, lang := range []Lang{En, He} {
+		for _, id := range []string{"agent.updated", "agent.update_failed"} {
+			m := Render(lang, id, args)
+			for _, s := range []string{m.Title, m.Explain} {
+				if strings.Contains(s, "{{") || strings.Contains(s, "<no value>") {
+					t.Errorf("%s/%s left a placeholder: %q", lang, id, s)
+				}
+			}
+			if !strings.Contains(m.Title, "v0.3.1") {
+				t.Errorf("%s/%s title lacks the version: %q", lang, id, m.Title)
+			}
+			if !strings.Contains(m.Explain, "v0.3.1") && id == "agent.updated" {
+				t.Errorf("%s/%s explain lacks the version: %q", lang, id, m.Explain)
+			}
+			if id == "agent.update_failed" && !strings.Contains(m.Explain, "boom") {
+				t.Errorf("%s/%s explain lacks the reason: %q", lang, id, m.Explain)
+			}
+		}
+	}
+}
+
 // Two numbers in one message, each with its own form.
 func TestPluralTwoNumbers(t *testing.T) {
 	bf := func(lang Lang, count, minutes string) string {
@@ -218,5 +264,14 @@ func TestUIMorePlural(t *testing.T) {
 		if got := T(c.lang, "more", map[string]string{"n": c.n}); got != c.want {
 			t.Errorf("more %s/%s = %q, want %q", c.lang, c.n, got, c.want)
 		}
+	}
+}
+
+// Not enrolled, the daemon doesn't know the target version: the title names "the latest release".
+func TestUpdateFailedWithoutVersion(t *testing.T) {
+	en := Render(En, "agent.update_failed", map[string]string{"from": "v0.3.0", "reason": "x"})
+	he := Render(He, "agent.update_failed", map[string]string{"from": "v0.3.0", "reason": "x"})
+	if en.Title != "Automatic update to the latest release failed" || he.Title != "העדכון האוטומטי לגרסה האחרונה נכשל" {
+		t.Errorf("en %q, he %q", en.Title, he.Title)
 	}
 }
